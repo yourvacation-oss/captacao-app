@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════
 // Your Vacation — Qualificador de Captação
-// Google Apps Script Backend — v9
+// Google Apps Script Backend — v10
 // Cole este código em: Planilha > Extensões > Apps Script
 // Depois: Implantar > Gerenciar implantações > Editar > Nova versão > Implantar
 // ═══════════════════════════════════════════════════════
@@ -612,6 +612,86 @@ function desativarChaveLeads() {
   Logger.log('Chave desativada: leitura liberada como antes.');
 }
 
+// ── EQUIPE CENTRALIZADA (v10) ──
+// Aba "Equipe": a lista de quem entra no app. O app lê por ?action=listarEquipe
+// e guarda uma cópia no celular. Nunca apagar linhas: desativar = Ativo NÃO.
+const EQUIPE_SHEET = 'Equipe';
+const EQUIPE_COLUNAS = ['Nome','Cargo','Operacao','Sala','SenhaHash','Ativo','ResetEm','CriadoPor','CriadoEm'];
+const APP_URL_INDEX = 'https://yourvacation-oss.github.io/captacao-app/index.html';
+
+function _isoTexto(v) {
+  if (!v) return '';
+  if (Object.prototype.toString.call(v) === '[object Date]') return isNaN(v) ? '' : v.toISOString();
+  return String(v).trim();
+}
+// Devolve null se a aba ainda não existe
+function lerEquipe() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(EQUIPE_SHEET);
+  if (!sheet || sheet.getLastRow() < 2) return null;
+  const cab = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const ix = {}; EQUIPE_COLUNAS.forEach(c => { ix[c] = cab.indexOf(c); });
+  const g = (r, c) => ix[c] >= 0 ? r[ix[c]] : '';
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues()
+    .filter(r => String(g(r, 'Nome')).trim())
+    .map(r => ({
+      nome:      String(g(r, 'Nome')).trim(),
+      cargo:     String(g(r, 'Cargo')).trim(),
+      operacao:  String(g(r, 'Operacao')).trim() || null,
+      sala:      String(g(r, 'Sala')).trim() || null,
+      senhaHash: String(g(r, 'SenhaHash')).trim(),
+      ativo:     String(g(r, 'Ativo')).trim().toUpperCase() !== 'NÃO' && String(g(r, 'Ativo')).trim().toUpperCase() !== 'NAO',
+      resetEm:   _isoTexto(g(r, 'ResetEm')),
+    }));
+}
+
+// Lê os membros ativos de CONFIG.captadores no index.html (linhas comentadas com // ficam de fora)
+function _membrosDoConfig(html) {
+  const ini = html.indexOf('captadores: [');
+  if (ini < 0) throw new Error('CONFIG.captadores não encontrado no app');
+  const fim = html.indexOf('\n  ],', ini);
+  const membros = [];
+  html.slice(ini, fim).split('\n').forEach(linha => {
+    if (!/^\s*\{\s*nome:/.test(linha)) return; // ignora comentadas e outras linhas
+    const campo = re => { const m = linha.match(re); return m ? m[1] : null; };
+    const nome = campo(/nome:\s*'([^']*)'/);
+    if (!nome) return;
+    membros.push({
+      nome: nome.trim(),
+      cargo: campo(/cargo:\s*'([^']*)'/) || 'captador',
+      operacao: campo(/operacao:\s*'([^']*)'/),
+      sala: campo(/sala:\s*'([^']*)'/),
+      senhaHash: campo(/senhaHash:\s*'([0-9a-f]+)'/) || '',
+    });
+  });
+  return membros;
+}
+
+// RODAR UMA VEZ (Apps Script > Executar): cria a aba Equipe com os membros ativos do app.
+// Pode rodar de novo: só acrescenta quem ainda não estiver na aba.
+function criarAbaEquipe() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(EQUIPE_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(EQUIPE_SHEET);
+    const h = sheet.getRange(1, 1, 1, EQUIPE_COLUNAS.length);
+    h.setValues([EQUIPE_COLUNAS]); h.setBackground('#1a2340'); h.setFontColor('#c9a84c'); h.setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+  // ResetEm e CriadoEm como texto (o Sheets não converte para data)
+  sheet.getRange('G:G').setNumberFormat('@STRING@');
+  sheet.getRange('I:I').setNumberFormat('@STRING@');
+  const html = UrlFetchApp.fetch(APP_URL_INDEX + '?t=' + Date.now(), { muteHttpExceptions: true }).getContentText();
+  const membros = _membrosDoConfig(html);
+  if (membros.length < 10) throw new Error('Li só ' + membros.length + ' membros do app — nada foi gravado.');
+  const jaTem = new Set((lerEquipe() || []).map(m => m.nome.toLowerCase()));
+  const agora = new Date().toISOString();
+  const novos = membros.filter(m => !jaTem.has(m.nome.toLowerCase()))
+    .map(m => [m.nome, m.cargo, m.operacao || '', m.sala || '', m.senhaHash, 'SIM', '', 'migração (app)', agora]);
+  if (novos.length) sheet.getRange(sheet.getLastRow() + 1, 1, novos.length, EQUIPE_COLUNAS.length).setValues(novos);
+  Logger.log('Aba Equipe: ' + novos.length + ' membros acrescentados (' + membros.length + ' ativos no app).');
+  return novos.length;
+}
+
 function _doGet(e) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -637,6 +717,13 @@ function _doGet(e) {
         }
       }
       return jsonResponse({ status: 'not_found', id: params.id });
+    }
+
+    // ?action=listarEquipe — lista da aba Equipe (o app guarda uma cópia no celular)
+    if (params.action === 'listarEquipe') {
+      if (!chaveLeadsOk(params)) return jsonResponse({ status: 'unauthorized' });
+      const equipe = lerEquipe();
+      return jsonResponse(equipe ? { status: 'ok', equipe } : { status: 'sem_aba', equipe: [] });
     }
 
     // ?_type=pi — retorna pesquisas incompletas do PropertiesService

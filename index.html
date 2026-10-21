@@ -1703,10 +1703,11 @@ async function sha256(str) {
 // Prioridade: localStorage (senha personalizada) > senhaHash do CONFIG/extras.
 // EXCEÇÃO: se resetSenha=true no cadastro, ignora localStorage (força uso da senha do CONFIG).
 function getSenhaHash(nome) {
-  const todos = [...CONFIG.captadores, ...JSON.parse(localStorage.getItem('yv_equipe_extras')||'[]')];
+  const todos = equipeAtual();
   const c = todos.find(x => x.nome === nome);
   // Se resetSenha=true OU não tem captador cadastrado, ignora localStorage e usa o CONFIG
-  const stored = (!c || c.resetSenha) ? null : localStorage.getItem('yv_pw_' + nome);
+  // v2.35: senha pessoal criada antes de o líder redefinir (ResetEm) também é ignorada
+  const stored = (!c || c.resetSenha || senhaPessoalVencida(nome)) ? null : localStorage.getItem('yv_pw_' + nome);
   if (stored) return stored; // já é um hash
   return c ? (c.senhaHash || null) : null;
 }
@@ -1715,13 +1716,68 @@ function getSenhaHash(nome) {
 async function setSenha(nome, pw) {
   const h = await sha256(pw);
   localStorage.setItem('yv_pw_' + nome, h);
+  localStorage.setItem('yv_pw_em_' + nome, new Date().toISOString()); // v2.35: data da senha pessoal
   return h;
 }
 
-// Verifica se o captador ainda usa a senha padrão do CONFIG (sem senha personalizada no localStorage).
+// Verifica se o captador ainda usa a senha padrão/provisória (sem senha pessoal válida neste celular).
 function usaSenhaPadrao(nome) {
-  return !localStorage.getItem('yv_pw_' + nome);
+  return !localStorage.getItem('yv_pw_' + nome) || senhaPessoalVencida(nome);
 }
+
+// ═══ EQUIPE CENTRALIZADA (v2.35) ═══
+// A lista de quem entra vem da aba "Equipe" da planilha, com cópia no celular
+// (funciona sem internet). Sem cópia ainda, usa CONFIG.captadores como reserva.
+// Membros adicionados só neste celular (yv_equipe_extras) continuam valendo.
+const EQUIPE_CACHE_KEY = 'yv_equipe_central';
+function _equipeCentral() {
+  try {
+    const c = JSON.parse(localStorage.getItem(EQUIPE_CACHE_KEY) || 'null');
+    return c && Array.isArray(c.membros) && c.membros.some(m => m.ativo) ? c.membros : null;
+  } catch (e) { return null; }
+}
+function equipeAtual() {
+  let extras = [];
+  try { extras = JSON.parse(localStorage.getItem('yv_equipe_extras') || '[]'); } catch (e) {}
+  const central = _equipeCentral();
+  if (!central) return [...CONFIG.captadores, ...extras];
+  const ativos = central.filter(m => m.ativo).map(m => ({
+    nome: m.nome, cargo: m.cargo || 'captador', operacao: m.operacao || null,
+    ...(m.sala ? { sala: m.sala } : {}), senhaHash: m.senhaHash || '', resetEm: m.resetEm || '',
+  }));
+  const nomes = new Set(central.map(m => m.nome)); // desativado na planilha não volta pelos extras
+  return [...ativos, ...extras.filter(x => !nomes.has(x.nome))];
+}
+function equipeSincronizar() {
+  if (!API.ok() || !navigator.onLine) return Promise.resolve(false);
+  const k = qqParamChave();
+  return fetch(CONFIG.webhookUrl + '?action=listarEquipe' + (k ? '&' + k : ''), { cache: 'no-store' })
+    .then(r => r.ok ? r.json() : null)
+    .then(j => {
+      if (!j || j.status !== 'ok' || !Array.isArray(j.equipe) || !j.equipe.some(m => m && m.ativo)) return false;
+      localStorage.setItem(EQUIPE_CACHE_KEY, JSON.stringify({ em: new Date().toISOString(), membros: j.equipe }));
+      // Na tela de entrada, atualiza a lista com o que chegou
+      const tela = document.getElementById('screenLogin');
+      if (tela && !tela.classList.contains('hidden') && !document.getElementById('loginSelectPanel').classList.contains('hidden')) renderLoginList(null);
+      return true;
+    })
+    .catch(() => false);
+}
+// Senha redefinida pelo líder (ResetEm) depois que a pessoa criou a senha pessoal
+function _membro(nome) { return equipeAtual().find(m => m.nome === nome) || null; }
+function senhaPessoalVencida(nome) {
+  const m = _membro(nome);
+  if (!m || !m.resetEm || !localStorage.getItem('yv_pw_' + nome)) return false;
+  return (localStorage.getItem('yv_pw_em_' + nome) || '') < m.resetEm;
+}
+// Entrada automática bloqueada se a senha foi redefinida depois do último login neste celular
+function loginVencidoPorReset(nome) {
+  const m = _membro(nome);
+  return !!(m && m.resetEm && (localStorage.getItem('yv_login_em') || '') < m.resetEm);
+}
+function _marcarLogin() { try { localStorage.setItem('yv_login_em', new Date().toISOString()); } catch (e) {} }
+setInterval(equipeSincronizar, 30 * 60 * 1000);
+window.addEventListener('online', () => equipeSincronizar());
 function temAcessoTotal(c) {
   return c && ['sublider','lider','ceo','supervisor_adm'].includes(c.cargo);
 }
@@ -1839,8 +1895,15 @@ function initLogin() {
   //  o nome fica salvo e o app entra direto nas próximas vezes.)
   const savedNome = sessionStorage.getItem('yv_captador') || localStorage.getItem('yv_captador');
   if (savedNome) {
-    const todos = [...CONFIG.captadores, ...JSON.parse(localStorage.getItem('yv_equipe_extras')||'[]')];
+    const todos = equipeAtual();
     const found = todos.find(c => c.nome === savedNome);
+    if (found && loginVencidoPorReset(found.nome)) {
+      // v2.35: o líder redefiniu a senha depois do último login neste celular
+      document.getElementById('screenLogin').classList.remove('hidden');
+      loginPickNome(found.nome);
+      document.getElementById('pwError').textContent = 'Sua senha foi redefinida pelo líder. Entre com a senha provisória.';
+      return;
+    }
     if (found) {
       captador = found;
       // v2.33: se fechou o app antes de criar a senha pessoal, volta para essa etapa
@@ -1852,6 +1915,9 @@ function initLogin() {
       }
       document.getElementById('screenLogin').classList.add('hidden'); afterLogin(); return;
     }
+    // v2.35: não está mais na equipe (desativado) → esquece o login deste celular
+    sessionStorage.removeItem('yv_captador');
+    try { localStorage.removeItem('yv_captador'); } catch (e) {}
   }
   renderLoginList(null);
   document.getElementById('loginSelectPanel').classList.remove('hidden');
@@ -1865,7 +1931,7 @@ const ROLE_LABEL_LOGIN = { captador:'Captador(a)', sublider:'Sublíder', lider:'
 function _loginIniciais(nome) { return String(nome || '').split(' ').filter(Boolean).map(p => p[0]).slice(0, 2).join('').toUpperCase(); }
 function _loginCargo(c) { const cargo = ROLE_LABEL_LOGIN[c.cargo] || c.cargo || ''; return c.operacao ? cargo + ' · ' + c.operacao : cargo; }
 function _escHtml(t) { return String(t || '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch])); }
-function _loginTodos() { return [...CONFIG.captadores, ...JSON.parse(localStorage.getItem('yv_equipe_extras')||'[]')]; }
+function _loginTodos() { return equipeAtual(); }
 function renderLoginList(selected, filtro) {
   const ul = document.getElementById('loginList');
   if (filtro === undefined) { const inp = document.getElementById('loginSearch'); filtro = inp ? inp.value : ''; }
@@ -1943,14 +2009,15 @@ async function doLogin() {
   const hashDigitada = await sha256(pw);
   // FIX v2.25: para quem tem resetSenha, a senha pessoal criada no 1º acesso era
   // ignorada nos logins seguintes. Agora valem as duas: a do líder e a pessoal.
-  const hashPessoal = localStorage.getItem('yv_pw_' + nome);
+  const vencida = senhaPessoalVencida(nome); // v2.35: líder redefiniu depois da senha pessoal
+  const hashPessoal = vencida ? null : localStorage.getItem('yv_pw_' + nome);
   const senhaOk = hashDigitada === hashCorreta || (!!hashPessoal && hashDigitada === hashPessoal);
   if (!senhaOk) {
     // Ajuda o captador a entender: se já tem senha pessoal no localStorage,
     // a do CONFIG não vale — precisa limpar cache ou usar aba anônima
-    const temPessoal = !!localStorage.getItem('yv_pw_' + nome);
+    const temPessoal = !vencida && !!localStorage.getItem('yv_pw_' + nome);
     // Se o cadastro tem resetSenha:true, o líder pode forçar reset de emergência
-    const cfgTodos = [...CONFIG.captadores, ...JSON.parse(localStorage.getItem('yv_equipe_extras')||'[]')];
+    const cfgTodos = equipeAtual();
     const cfg = cfgTodos.find(x => x.nome === nome);
     const podeResetEmergencial = cfg && cfg.resetSenha;
     const msg = temPessoal
@@ -1964,8 +2031,11 @@ async function doLogin() {
     if (btn) btn.classList.toggle('hidden', !(temPessoal && podeResetEmergencial));
     return;
   }
-  const todosLogin = [...CONFIG.captadores, ...JSON.parse(localStorage.getItem('yv_equipe_extras')||'[]')];
+  const todosLogin = equipeAtual();
   captador = todosLogin.find(c => c.nome === nome);
+  _marcarLogin();
+  // v2.35: entrou com a senha provisória → a pessoal antiga sai e pede uma nova
+  if (vencida) { localStorage.removeItem('yv_pw_' + nome); localStorage.removeItem('yv_pw_em_' + nome); }
   // Salvar login já autenticado — mesmo que vá abrir tela de criar senha depois,
   // o app já sabe quem é (auto-login nas próximas vezes).
   sessionStorage.setItem('yv_captador', nome);
@@ -3941,7 +4011,7 @@ function renderHistFiltros() {
   }
 
   const wrap = document.getElementById('histFiltrosWrap');
-  const todos = [...CONFIG.captadores, ...JSON.parse(localStorage.getItem('yv_equipe_extras')||'[]')];
+  const todos = equipeAtual();
   const periodos = [
     { v:'hoje',   l:'Hoje'        },
     { v:'semana', l:'Esta semana' },
@@ -4216,7 +4286,7 @@ function abrirModalExport() {
   if (temAcessoTotal(captador)) {
     wrap.classList.remove('hidden');
     const sel = document.getElementById('expCaptador');
-    const todos = [...CONFIG.captadores, ...JSON.parse(localStorage.getItem('yv_equipe_extras')||'[]')];
+    const todos = equipeAtual();
     sel.innerHTML = '<option value="todos">Todos</option>' +
       todos.map(m => `<option value="${m.nome}">${m.nome}</option>`).join('');
   } else {
@@ -4709,7 +4779,7 @@ function renderCdp(leadsHoje) {
   const posLabel   = ['🥇','🥈','🥉'];
   const sorted = Object.entries(map)
     .map(([nome, s]) => {
-      const cfg  = [...CONFIG.captadores, ...JSON.parse(localStorage.getItem('yv_equipe_extras')||'[]')].find(c=>c.nome===nome);
+      const cfg  = equipeAtual().find(c=>c.nome===nome);
       const conv = s.q > 0 ? Math.round(s.salaQ / s.q * 100) : null;
       return { nome, q:s.q, nq:s.nq, salaQ:s.salaQ, salaNQ:s.salaNQ, salaTot:s.salaQ+s.salaNQ, pi:s.pi||0, conv, total:s.q+s.nq, cargo: cfg?.cargo||'captador' };
     })
@@ -4811,7 +4881,7 @@ function renderTrFiltros() {
     html += '</select>';
     html += '<select class="filtro-select" onchange="setTrFiltro(\'captador\',this.value)">';
     html += `<option value="todos"${trFiltro.captador==='todos'?' selected':''}>Todos captadores</option>`;
-    const caps = [...CONFIG.captadores, ...JSON.parse(localStorage.getItem('yv_equipe_extras')||'[]')]
+    const caps = equipeAtual()
       .filter(c => c.cargo === 'captador');
     caps.forEach(c => {
       html += `<option value="${c.nome}"${trFiltro.captador===c.nome?' selected':''}>${c.nome.split(' ')[0]}</option>`;
@@ -5012,7 +5082,7 @@ function renderTrPico(lista) {
 // EQUIPE
 function getExtras() { return JSON.parse(localStorage.getItem('yv_equipe_extras') || '[]'); }
 function saveExtras(arr) { localStorage.setItem('yv_equipe_extras', JSON.stringify(arr)); }
-function todosOsMembros() { return [...CONFIG.captadores, ...getExtras()]; }
+function todosOsMembros() { return equipeAtual(); }
 
 // Ocultar/mostrar senha na tela Equipe
 const eqPwState = {};
@@ -6936,7 +7006,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.34';
+const APP_VERSAO = '2.35';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
@@ -7140,6 +7210,7 @@ function _qqIniciarPonte() {
 
 // INIT
 initLogin();
+equipeSincronizar(); // v2.35: atualiza a cópia da equipe no celular
 offlineFlush(); // tenta reenviar ao carregar se já online
 </script>
 </body>
