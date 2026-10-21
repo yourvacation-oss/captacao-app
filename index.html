@@ -1233,6 +1233,22 @@
 </div>
 
 <script>
+// ═══ CHAVE DE ACESSO (v2.32) ═══
+// Link #qqchave=... (enviado pela gestão) grava a chave neste celular. A chave vai junto
+// na leitura da lista de pesquisas. Fica depois do #, que não vai para nenhum servidor.
+const CHAVE_LEADS_KEY = 'yv_chave_leads';
+(function _qqImportarChave() {
+  try {
+    const m = location.hash.match(/[#&]qqchave=([A-Za-z0-9]+)/);
+    if (!m) return;
+    localStorage.setItem(CHAVE_LEADS_KEY, m[1]);
+    if (!/qqmig=/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
+  } catch (e) {}
+})();
+function qqParamChave() {
+  try { const k = localStorage.getItem(CHAVE_LEADS_KEY); return k ? 'k=' + encodeURIComponent(k) : ''; } catch (e) { return ''; }
+}
+
 // ═══ MIGRAÇÃO DE ENDEREÇO (v2.27) ═══
 // A ponte do endereço antigo envia, dentro do próprio link (depois do #, que não vai
 // para nenhum servidor), os dados que só existiam no celular: login salvo, senha
@@ -1470,6 +1486,15 @@ const API = {
       return false;
     }
   },
+  // Igual ao post, mas devolve a resposta do servidor (ou null se falhou)
+  postJson: async (payload) => {
+    if (!API.ok()) return null;
+    try {
+      const r = await fetch(CONFIG.webhookUrl, { method: 'POST', headers: {'Content-Type':'text/plain'}, body: JSON.stringify(payload) });
+      if (!r.ok) return null;
+      return await r.json().catch(() => null);
+    } catch(e) { return null; }
+  },
   getLeads: async (dateISO, dateFrom, dateTo) => {
     // ⚠️ REGRA CRÍTICA — NUNCA filtrar por data única (dateISO) no sync do CDP.
     // O mergeRemoto só ADICIONA leads — nunca remove. Se o filtro for restrito demais
@@ -1478,7 +1503,7 @@ const API = {
     // dateISO só deve ser usado no showHist (Histórico individual do captador).
     if (!API.ok()) return null;
     try {
-      const p = new URLSearchParams();
+      const p = new URLSearchParams(qqParamChave());
       if (dateISO)  p.set('dateISO',  dateISO);
       if (dateFrom) p.set('dateFrom', dateFrom);
       if (dateTo)   p.set('dateTo',   dateTo);
@@ -4481,7 +4506,7 @@ function showCdp() {
     const _cdpDateTo   = (cdpFiltro.periodo === 'livre' && cdpFiltro.ate) ? cdpFiltro.ate : todayISO();
     Promise.all([
       API.getLeads(null, _cdpDateFrom, _cdpDateTo),
-      fetch(CONFIG.webhookUrl + '?_type=pi').then(r=>r.json()).catch(()=>null)
+      fetch(CONFIG.webhookUrl + '?_type=pi' + (qqParamChave() ? '&' + qqParamChave() : '')).then(r=>r.json()).catch(()=>null)
     ]).then(([remoto, piRemoto]) => {
       mergeRemoto(remoto, _cdpDateFrom);
       mergePIsRemoto(piRemoto);
@@ -6829,7 +6854,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.31';
+const APP_VERSAO = '2.32';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
@@ -6903,6 +6928,16 @@ function offlineEnqueue(lead, naoSobrescrever) {
   localStorage.setItem(OFFLINE_KEY, JSON.stringify(q));
 }
 
+// Marcação cuja pesquisa ainda não está na planilha: tenta de novo. Se a pesquisa ainda
+// está na fila deste celular, espera por ela; senão desiste depois de ~20 min (40 tentativas).
+function _reenfileirarMarcacaoSemPesquisa(u) {
+  const t = (u._tentativas || 0) + 1;
+  let pesquisaNaFila = false;
+  try { pesquisaNaFila = JSON.parse(localStorage.getItem(OFFLINE_KEY) || '[]').some(x => x && !x._action && String(x.id) === String(u.id)); } catch (e) {}
+  if (t <= 40 || pesquisaNaFila) offlineEnqueue({ ...u, _tentativas: t }, true);
+  else console.warn('Marcação descartada: pesquisa não encontrada na planilha', u.id);
+}
+
 let _flushEmAndamento = false;
 function offlineFlush() {
   if (!navigator.onLine || !API.ok()) return;
@@ -6930,8 +6965,15 @@ function offlineFlush() {
     if (salas.length) {
       const payload = salas.length === 1 ? salas[0]
         : { _action: 'update_sala_batch', updates: salas.map(u => ({ id: u.id, emSala: u.emSala, tipoSala: u.tipoSala, venda: u.venda })) };
-      const ok = await API.post(payload).catch(() => false);
-      if (!ok) salas.forEach(u => offlineEnqueue(u, true));
+      const res = await API.postJson(payload).catch(() => null);
+      const ok = res && (res.status === 'ok' || res.status === 'duplicate');
+      if (res && res.status === 'not_found') salas.forEach(_reenfileirarMarcacaoSemPesquisa);
+      else if (!ok) salas.forEach(u => offlineEnqueue(u, true));
+      else if (Array.isArray(res.not_found_ids) && res.not_found_ids.length) {
+        // v2.32: o servidor diz quais marcações não acharam a pesquisa — guarda para tentar de novo
+        const semPesquisa = new Set(res.not_found_ids.map(String));
+        salas.filter(u => semPesquisa.has(String(u.id))).forEach(_reenfileirarMarcacaoSemPesquisa);
+      }
     }
     _flushEmAndamento = false;
     if (salvouAlgo) { _salvarLeads(); renderHistList(); }

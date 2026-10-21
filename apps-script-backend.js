@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════
 // Your Vacation — Qualificador de Captação
-// Google Apps Script Backend — v8
+// Google Apps Script Backend — v9
 // Cole este código em: Planilha > Extensões > Apps Script
 // Depois: Implantar > Gerenciar implantações > Editar > Nova versão > Implantar
 // ═══════════════════════════════════════════════════════
@@ -350,7 +350,23 @@ function adicionarColunasFaltantes() {
   Logger.log('===== TOTAL: ' + totalAdicoes + ' colunas adicionadas em todas as abas =====');
 }
 
-function doPost(e) {
+// v9: uma escrita por vez. Dois envios ao mesmo tempo esperam a vez em vez de
+// os dois acharem "não existe" e gravarem a mesma pesquisa duas vezes.
+function comTrava(fn) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) return jsonResponse({ status: 'busy' }); // app reenvia depois
+  try { return fn(); } finally { lock.releaseLock(); }
+}
+
+// Abas que guardam pesquisas (sem repetir)
+function abasDePesquisas() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  return Array.from(new Set(Object.values(SALA_SHEETS))).map(n => ss.getSheetByName(n)).filter(Boolean);
+}
+
+function doPost(e) { return comTrava(() => _doPost(e)); }
+
+function _doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
     if (data.sala !== undefined && data.sala !== null) data.sala = normalizarSalaDigitada(data.sala);
@@ -395,7 +411,7 @@ function doPost(e) {
     // update_sala: atualiza EmSala, TipoSala e Venda de um lead existente
     if (data._action === 'update_sala') {
       const ss = SpreadsheetApp.getActiveSpreadsheet();
-      const sheetsAlvo = Object.values(SALA_SHEETS).map(n => ss.getSheetByName(n)).filter(Boolean);
+      const sheetsAlvo = abasDePesquisas();
       for (const sheet of sheetsAlvo) {
         const row = findRowById(sheet, data.id);
         if (row > 0) {
@@ -417,7 +433,7 @@ function doPost(e) {
     // update_sala_batch: atualiza N leads em 1 chamada (evita quota exceeded)
     if (data._action === 'update_sala_batch' && Array.isArray(data.updates)) {
       const ss = SpreadsheetApp.getActiveSpreadsheet();
-      const sheetsAlvo = Object.values(SALA_SHEETS).map(n => ss.getSheetByName(n)).filter(Boolean);
+      const sheetsAlvo = abasDePesquisas();
       // Cache de cabeçalhos por sheet (evita releitura)
       const cabecalhoCache = {};
       sheetsAlvo.forEach(s => { cabecalhoCache[s.getName()] = s.getRange(1, 1, 1, s.getLastColumn()).getValues()[0]; });
@@ -445,7 +461,8 @@ function doPost(e) {
           if (!found) results.not_found.push(String(u.id));
         } catch (e) { results.errors++; }
       });
-      return jsonResponse({ status: 'ok', processed: data.updates.length, updated: results.ok, not_found: results.not_found.length, errors: results.errors });
+      // not_found: quantidade (compatível com versões antigas); not_found_ids: quais marcações não acharam a pesquisa
+      return jsonResponse({ status: 'ok', processed: data.updates.length, updated: results.ok, not_found: results.not_found.length, not_found_ids: results.not_found, errors: results.errors });
     }
 
     // register_pi: salva em PropertiesService (sem criar aba na planilha)
@@ -470,8 +487,20 @@ function doPost(e) {
     }
 
     // novo lead — salva na aba da sala correspondente
-    const sheet = resolverSheet(data.sala || '');
-    const existingRow = findRowById(sheet, data.id);
+    // v9: linha sem ID não é gravada (virava linha em branco/sem dono na planilha)
+    if (data.id === undefined || data.id === null || String(data.id).trim() === '') {
+      return jsonResponse({ status: 'error', code: 'sem_id', message: 'Pesquisa sem ID não foi gravada' });
+    }
+    // v9: procura o ID em todas as abas de pesquisas (a mesma pesquisa pode chegar com outra sala)
+    let sheet = resolverSheet(data.sala || '');
+    let existingRow = findRowById(sheet, data.id);
+    if (existingRow < 0) {
+      for (const outra of abasDePesquisas()) {
+        if (outra.getName() === sheet.getName()) continue;
+        const r = findRowById(outra, data.id);
+        if (r > 0) { sheet = outra; existingRow = r; break; }
+      }
+    }
     if (existingRow > 0) {
       // Lead já existe — sincroniza EmSala, TipoSala e Venda se presentes no request
       if (data.emSala || data.tipoSala || data.venda) {
@@ -548,6 +577,42 @@ function doPost(e) {
 }
 
 function doGet(e) {
+  const p = e && e.parameter ? e.parameter : {};
+  const escreve = p._action === 'update_sala' || p.action === 'saveDDP';
+  return escreve ? comTrava(() => _doGet(e)) : _doGet(e);
+}
+
+// ── Chave de acesso para ler a lista de pesquisas (v9) ──
+// Fica guardada em Propriedades do script (CHAVE_LEADS), nunca no código.
+// Sem chave ativa, tudo funciona como antes. Com chave ativa, a leitura da lista
+// de pesquisas e das incompletas exige ?k=<chave>.
+function chaveLeadsOk(params) {
+  const chave = PropertiesService.getScriptProperties().getProperty('CHAVE_LEADS');
+  return !chave || String(params.k || '') === chave;
+}
+// Passo 1: gera a chave (ainda não exige). O link para os celulares sai no registro.
+function gerarChaveLeads() {
+  const chave = Utilities.getUuid().replace(/-/g, '');
+  PropertiesService.getScriptProperties().setProperty('CHAVE_LEADS_PENDENTE', chave);
+  Logger.log('Chave gerada (ainda NÃO exigida). Link para enviar à equipe:');
+  Logger.log('https://yourvacation-oss.github.io/captacao-app/#qqchave=' + chave);
+}
+// Passo 2: quando os celulares já tiverem a chave, passa a exigir.
+function ativarChaveLeads() {
+  const props = PropertiesService.getScriptProperties();
+  const chave = props.getProperty('CHAVE_LEADS_PENDENTE') || props.getProperty('CHAVE_LEADS');
+  if (!chave) { Logger.log('Rode gerarChaveLeads primeiro.'); return; }
+  props.setProperty('CHAVE_LEADS', chave);
+  props.deleteProperty('CHAVE_LEADS_PENDENTE');
+  Logger.log('Chave ATIVA: a lista de pesquisas só é lida com a chave.');
+}
+// Volta a funcionar sem chave (emergência)
+function desativarChaveLeads() {
+  PropertiesService.getScriptProperties().deleteProperty('CHAVE_LEADS');
+  Logger.log('Chave desativada: leitura liberada como antes.');
+}
+
+function _doGet(e) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const params = e && e.parameter ? e.parameter : {};
@@ -555,7 +620,7 @@ function doGet(e) {
 
     // ?_action=update_sala&id=...&sala=... — atualiza coluna Sala via GET
     if (params._action === 'update_sala') {
-      const sheetsAlvo = Object.values(SALA_SHEETS).map(n => ss.getSheetByName(n)).filter(Boolean);
+      const sheetsAlvo = abasDePesquisas();
       for (const sheet of sheetsAlvo) {
         const row = findRowById(sheet, params.id);
         if (row > 0) {
@@ -576,6 +641,7 @@ function doGet(e) {
 
     // ?_type=pi — retorna pesquisas incompletas do PropertiesService
     if (params._type === 'pi') {
+      if (!chaveLeadsOk(params)) return jsonResponse({ status: 'unauthorized' });
       return jsonResponse({ status: 'ok', pis: getPIs() });
     }
 
@@ -610,9 +676,11 @@ function doGet(e) {
       return jsonResponse({ status: 'ok' });
     }
 
+    if (!chaveLeadsOk(params)) return jsonResponse({ status: 'unauthorized' });
+    // v9: cada aba uma vez só (antes a mesma aba era lida várias vezes e repetia pesquisas)
     const sheetsAlvo = salaFiltro
       ? [ss.getSheetByName(SALA_SHEETS[salaFiltro] || salaFiltro)].filter(Boolean)
-      : Object.values(SALA_SHEETS).map(n => ss.getSheetByName(n)).filter(Boolean);
+      : abasDePesquisas();
 
     // ?dateISO=2026-04-24 filtra por dia exato; ?dateFrom=...&dateTo=... filtra por range
     const dateISOFiltro = params.dateISO || null;

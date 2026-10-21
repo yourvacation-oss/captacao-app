@@ -45,6 +45,8 @@ São Pedro, Caldas Novas, Atibaia, Ribeirão Preto.
 - Sala digitada "São Pedro" (qualquer acento/maiúscula) é gravada como SPTR: salaDigitadaCanon() no app e normalizarSalaDigitada() no backend. "São Pedro Resort" é outro caso (vai por captador em normalizarSala).
 - Hotel de Caldas digitado em "Outra sala" (lista HOTEIS_CALDAS, tolera 1 letra errada) vira sala Externo (externo-cn, regra de Caldas); o nome digitado vai em pontoCaptacao → coluna PontoCaptacao. Alta Vista/Atrium/Marina/Toulon digitados vão para a própria sala. Função salaDoCampoLivre().
 - Backend retorna { status: 'ok' }: checar res.status === 'ok', não res.ok.
+- Backend v9: toda escrita passa por comTrava() (LockService; se ocupado devolve status 'busy' e o app reenvia). Pesquisa sem ID é recusada (code 'sem_id'). Antes de gravar, o ID é procurado em todas as abas (abasDePesquisas()). update_sala_batch devolve not_found_ids; o app guarda essas marcações e tenta de novo (_reenfileirarMarcacaoSemPesquisa).
+- Chave de acesso da lista de pesquisas: fica só em Propriedades do script (CHAVE_LEADS), nunca no código. Funções no Apps Script: gerarChaveLeads (gera, ainda não exige, mostra o link #qqchave=), ativarChaveLeads, desativarChaveLeads. O app guarda a chave em yv_chave_leads e manda como ?k=.
 - Template literals dentro de innerHTML: erro de sintaxe deixa o app em branco.
 - Reimplantar Apps Script: Implantar > Gerenciar implantações > editar > Nova versão. Assim a URL do webhook não muda. "Nova implantação" gera URL nova e exige trocar CONFIG.webhookUrl.
 - Usuários podem ver versão antiga por cache: recarregar forçado (Cmd+Shift+R).
