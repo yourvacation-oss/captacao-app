@@ -5121,6 +5121,10 @@ function ddpFillClass(val, meta) {
   return 'ddp-fill-red';
 }
 function ddpPct(n, d) { return d > 0 ? Math.round(n / d * 1000) / 10 : 0; }
+// FIX v2.28: regra única de penetração, usada no diário, no histórico e no acumulado.
+// Pool = só casais pool ÷ check-in pool. Convidados entram só na Analítica.
+function ddpPenetPool(salaPool, ciPool) { return ddpPct(salaPool || 0, ciPool || 0); }
+function ddpPenetAnltc(salaPool, salaConv, ciPool, ciConv) { return ddpPct((salaPool || 0) + (salaConv || 0), (ciPool || 0) + (ciConv || 0)); }
 function fmtPct(v)    { if (v === undefined || v === null || isNaN(v)) return '—'; return (Number.isInteger(v) ? v + ',0' : String(v).replace('.', ',')) + '%'; }
 
 // Retorna as operações que o líder logado pode ver
@@ -5212,7 +5216,7 @@ function renderDdp() {
   const vendConv  = isAuto ? (autoVals.vendConv || 0) : (saved.vendConv || 0);
   const vendTotal = vendPool + vendCot + vendConv;
 
-  const penetPool  = ddpPct(salaPool + salaConv, ciPool);
+  const penetPool  = ddpPenetPool(salaPool, ciPool);
   const penetGeral = ddpPct(salaTotal, ciTotal);
   const efic       = ddpPct(vendTotal, salaTotal);
 
@@ -5275,9 +5279,9 @@ function renderDdp() {
     acc.salaTotal  = acc.salaPool + acc.salaCot + acc.salaConv;
     acc.vendTotal  = acc.vendPool + acc.vendCot + acc.vendConv;
     acc.mc         = Math.round(acc.ciPool * DDP_CONFIG.metaPenetracaoPool);
-    acc.penetPool  = ddpPct(acc.salaPool, acc.ciPool);
+    acc.penetPool  = ddpPenetPool(acc.salaPool, acc.ciPool);
     acc.penetConv  = ddpPct(acc.salaConv, acc.ciConv);
-    acc.penetAnltc = ddpPct(acc.salaPool + acc.salaConv, acc.ciPool + acc.ciConv);
+    acc.penetAnltc = ddpPenetAnltc(acc.salaPool, acc.salaConv, acc.ciPool, acc.ciConv);
     acc.penetGeral = ddpPct(acc.salaTotal, acc.ciTotal);
     acc.pctGrupos  = ddpPct(acc.ciGrupos, acc.ciPool);
     acc.efic       = ddpPct(acc.vendTotal, acc.salaTotal);
@@ -5583,9 +5587,9 @@ function _ddpRenderAc(hoteis, anoMes) {
   });
   // Linha Total (só mostra se há mais de 1 hotel)
   if (hoteis.length > 1) {
-    const tPP  = ddpPct(totais.salaPool, totais.ciPool);
+    const tPP  = ddpPenetPool(totais.salaPool, totais.ciPool);
     const tPC  = ddpPct(totais.salaConv, totais.ciConv);
-    const tPA  = ddpPct(totais.salaPool + totais.salaConv, totais.ciPool + totais.ciConv);
+    const tPA  = ddpPenetAnltc(totais.salaPool, totais.salaConv, totais.ciPool, totais.ciConv);
     const tPG  = ddpPct(totais.salaTotal, totais.ciTotal);
     const tGr  = ddpPct(totais.ciGrupos, totais.ciPool);
     const ppC  = ddpPctClass(tPP/100, DDP_CONFIG.metaPenetracaoPool);
@@ -5667,7 +5671,7 @@ function _ddpRenderHist(hist) {
     const salaConv = (r.salaConv||0);
     const salaPool = (r.salaPool||0);
     const vend    = (r.vendPool||0) + (r.vendCot||0) + (r.vendConv||0);
-    const pp      = ddpPct(salaPool, ciPool); // penetração pool = sala pool ÷ CI pool
+    const pp      = ddpPenetPool(salaPool, ciPool); // penetração pool = sala pool ÷ CI pool
     return { ci, ciCot, ciPool, sala, salaCot, salaConv, salaPool, vend, pp };
   }
 
@@ -5678,7 +5682,7 @@ function _ddpRenderHist(hist) {
       ci+=s.ci; ciCot+=s.ciCot; ciPool+=s.ciPool; sala+=s.sala; vend+=s.vend;
       salaPool+=s.salaPool; salaCot+=s.salaCot; salaConv+=s.salaConv;
     });
-    const pp = ddpPct(salaPool, ciPool);
+    const pp = ddpPenetPool(salaPool, ciPool);
     return { ci, ciCot, ciPool, sala, vend, salaPool, salaCot, salaConv, pp };
   }
 
@@ -5863,7 +5867,7 @@ function _ddpRenderHist(hist) {
         <td>${s.vend}</td><td class="${pC}">${fmtPct(s.pp)}</td>
       </tr>`;
     }).join('');
-    const tPP  = ddpPct(tSalaPool, tPool);
+    const tPP  = ddpPenetPool(tSalaPool, tPool);
     const tPPC = ddpPctClass(tPP/100, DDP_CONFIG.metaPenetracaoPool);
 
     html += `
@@ -6032,7 +6036,7 @@ function ddpCopyCard() {
   hoteis.forEach(h => {
     const a  = acHotel(h);
     const mc = Math.round(a.ciPool * DDP_CONFIG.metaPenetracaoPool);
-    const pp = ddpPct(a.salaPool + (a.salaConv||0), a.ciPool);
+    const pp = ddpPenetPool(a.salaPool, a.ciPool);
     lines.push(`*${h}*`);
     lines.push(`  CI Total: ${a.ciTotal} | Pool: ${a.ciPool} | Cotistas: ${a.ciCot}`);
     lines.push(`  MC: ${mc}`);
@@ -6050,7 +6054,7 @@ function ddpCopyCard() {
       tot.salaConv  += a.salaConv  || 0;
     });
     const mc = Math.round(tot.ciPool * DDP_CONFIG.metaPenetracaoPool);
-    const pp = ddpPct(tot.salaPool + tot.salaConv, tot.ciPool);
+    const pp = ddpPenetPool(tot.salaPool, tot.ciPool);
     lines.push('');
     lines.push(`*Total ${op}*`);
     lines.push(`  CI Total: ${tot.ciTotal} | Pool: ${tot.ciPool} | Cotistas: ${tot.ciCot}`);
@@ -6091,7 +6095,7 @@ function ddpRecalc() {
   const vendConv = _ddpVal('ddp_vendConv');
   const vendTotal= vendPool + vendCot + vendConv;
 
-  const penetPool  = ddpPct(salaPool + salaConv, ciPool);
+  const penetPool  = ddpPenetPool(salaPool, ciPool);
   const penetGeral = ddpPct(salaTotal, ciTotal);
   const efic       = ddpPct(vendTotal, salaTotal);
   const metaPool   = DDP_CONFIG.metaPenetracaoPool  * 100;
@@ -6239,9 +6243,9 @@ function _ddpRenderAcRange(hoteis, de, ate) {
     const vendTotal = a.vendPool + a.vendCot + a.vendConv;
     const mc        = Math.round(a.ciPool * DDP_CONFIG.metaPenetracaoPool);
     const pctGrupos = ddpPct(a.ciGrupos, a.ciPool);
-    const penetPool = ddpPct(a.salaPool + a.salaConv, a.ciPool);
+    const penetPool = ddpPenetPool(a.salaPool, a.ciPool);
     const penetConv = ddpPct(a.salaConv, a.ciConv);
-    const penetAnltc= ddpPct(a.salaPool + a.salaConv, a.ciPool + a.ciConv);
+    const penetAnltc= ddpPenetAnltc(a.salaPool, a.salaConv, a.ciPool, a.ciConv);
     const penetGeral= ddpPct(salaTotal, ciTotal);
     totais.ciPool += a.ciPool; totais.ciCot += a.ciCot; totais.ciConv += a.ciConv;
     totais.ciGrupos += a.ciGrupos; totais.ciTotal += ciTotal;
@@ -6262,9 +6266,9 @@ function _ddpRenderAcRange(hoteis, de, ate) {
     </tr>`;
   });
   if (hoteis.length > 1) {
-    const tPP = ddpPct(totais.salaPool, totais.ciPool);
+    const tPP = ddpPenetPool(totais.salaPool, totais.ciPool);
     const tPC = ddpPct(totais.salaConv, totais.ciConv);
-    const tPA = ddpPct(totais.salaPool + totais.salaConv, totais.ciPool + totais.ciConv);
+    const tPA = ddpPenetAnltc(totais.salaPool, totais.salaConv, totais.ciPool, totais.ciConv);
     const tPG = ddpPct(totais.salaTotal, totais.ciTotal);
     const tGr = ddpPct(totais.ciGrupos, totais.ciPool);
     const ppC = ddpPctClass(tPP/100, DDP_CONFIG.metaPenetracaoPool);
@@ -6352,9 +6356,9 @@ function acHotel(h) {
   acc.salaTotal  = acc.salaPool + acc.salaCot + acc.salaConv;
   acc.vendTotal  = acc.vendPool + acc.vendCot + acc.vendConv;
   acc.mc         = Math.round(acc.ciPool * DDP_CONFIG.metaPenetracaoPool);
-  acc.penetPool  = ddpPct(acc.salaPool, acc.ciPool);
+  acc.penetPool  = ddpPenetPool(acc.salaPool, acc.ciPool);
   acc.penetConv  = ddpPct(acc.salaConv, acc.ciConv);
-  acc.penetAnltc = ddpPct(acc.salaPool + acc.salaConv, acc.ciPool + acc.ciConv);
+  acc.penetAnltc = ddpPenetAnltc(acc.salaPool, acc.salaConv, acc.ciPool, acc.ciConv);
   acc.penetGeral = ddpPct(acc.salaTotal, acc.ciTotal);
   acc.pctGrupos  = ddpPct(acc.ciGrupos, acc.ciPool);
   acc.efic       = ddpPct(acc.vendTotal, acc.salaTotal);
