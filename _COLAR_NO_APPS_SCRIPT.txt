@@ -515,7 +515,7 @@ function doPost(e) {
       data.tipoSala || '',                 // TipoSala
       data.venda    ? 'SIM' : '',          // Venda
       // Campos detalhados
-      data.sala || '',                     // PontoCaptacao (mesmo que Sala — filtrável)
+      data.pontoCaptacao || data.sala || '', // PontoCaptacao (nome digitado, ex.: hotel de Caldas em "Externo"; senão igual à Sala)
       ans.idadeMarido      || '',          // IdadeTitular
       ans.profissaoTitular || '',          // ProfissaoTitular
       ans.idadeConjuge     || '',          // IdadeConjuge
@@ -667,7 +667,7 @@ function doGet(e) {
         const get = (col) => idx[col] >= 0 ? r[idx[col]] : '';
         leads.push({
           id: String(get('ID')), date: String(get('Data')), time: (function(){ var v = get('Hora'); if (!v) return ''; if (v instanceof Date) return Utilities.formatDate(v, 'America/Sao_Paulo', 'HH:mm'); return String(v); })(),
-          captador: get('Captador'), sala: get('Sala'), nome: get('Nome'),
+          captador: get('Captador'), sala: get('Sala'), pontoCaptacao: get('PontoCaptacao'), nome: get('Nome'),
           tel: get('Telefone'), cidade: get('Cidade'), verdict: get('Resultado'),
           tipo: get('Tipo'), renda: get('Renda'), mode: get('Modo'),
           emSala:   get('EmSala')   === 'SIM',

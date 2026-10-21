@@ -42,6 +42,7 @@ São Pedro, Caldas Novas, Atibaia, Ribeirão Preto.
 - Captador desativado = linha comentada com // em CONFIG.captadores. Reativar = remover o //.
 - Atibaia com operacao null em registros antigos é proposital.
 - Sala digitada "São Pedro" (qualquer acento/maiúscula) é gravada como SPTR: salaDigitadaCanon() no app e normalizarSalaDigitada() no backend. "São Pedro Resort" é outro caso (vai por captador em normalizarSala).
+- Hotel de Caldas digitado em "Outra sala" (lista HOTEIS_CALDAS, tolera 1 letra errada) vira sala Externo (externo-cn, regra de Caldas); o nome digitado vai em pontoCaptacao → coluna PontoCaptacao. Alta Vista/Atrium/Marina/Toulon digitados vão para a própria sala. Função salaDoCampoLivre().
 - Backend retorna { status: 'ok' }: checar res.status === 'ok', não res.ok.
 - Template literals dentro de innerHTML: erro de sintaxe deixa o app em branco.
 - Reimplantar Apps Script: Implantar > Gerenciar implantações > editar > Nova versão. Assim a URL do webhook não muda. "Nova implantação" gera URL nova e exige trocar CONFIG.webhookUrl.

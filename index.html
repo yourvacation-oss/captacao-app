@@ -1513,6 +1513,54 @@ function salaDigitadaCanon(nome) {
   return k === 'sao pedro' ? 'SPTR' : n;
 }
 
+// v2.30: hotel de Caldas Novas digitado em "Outra sala" usa a sala Externo (regra de Caldas).
+// O nome digitado é guardado em pontoCaptacao (coluna PontoCaptacao da planilha).
+// Tolera erros comuns de digitação (ex.: Dirroma, Reviera, Eldourado, Everete).
+const HOTEIS_CALDAS = [
+  'diroma', 'lacqua', 'riviera', 'aquarios', 'boulevard', 'eldorado', 'araras', 'caldas',
+  'riocaldas', 'sesc', 'prive', 'nautico', 'everest', 'everete', 'lagoa', 'goldendolphin', 'ecologic',
+  'thermasparadise', 'piazza', 'lejardin', 'ilhasdolago', 'mirage', 'taiti', 'spazio',
+];
+// Salas próprias de Caldas digitadas no campo livre vão para a própria sala
+const SALAS_CALDAS_PROPRIAS = { 'altavista': 'alta-vista', 'atrium': 'atrium', 'marina': 'marina', 'toulon': 'toulon' };
+function _salaChave(t) {
+  return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+function _quaseIgual(a, b) { // distância de edição ≤ 1
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0, j = 0, dif = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++dif > 1) return false;
+    if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; }
+  }
+  return dif + (a.length - i) + (b.length - j) <= 1;
+}
+function ehHotelCaldas(texto) {
+  const k = _salaChave(texto);
+  if (!k) return false;
+  const junto = k.replace(/ /g, '');
+  const pal = k.split(' ');
+  // palavras soltas e pares de palavras juntas (ex.: "golden dolphin" → goldendolphin)
+  const partes = pal.concat(pal.slice(1).map((w, i) => pal[i] + w));
+  return HOTEIS_CALDAS.some(h =>
+    junto.includes(h) ||
+    // erro de 1 letra (Dirroma, Reviera, Sessc) ou nome cortado no fim (Eldora)
+    partes.some(w => (w.length >= 4 && h.length >= 4 && _quaseIgual(w, h)) ||
+                     (w.length >= 5 && h.startsWith(w) && h.length - w.length <= 3))
+  );
+}
+// Converte o texto digitado em "Outra sala" na sala que o app deve usar
+function salaDoCampoLivre(val) {
+  const n = String(val || '').trim();
+  if (salaDigitadaCanon(n) === 'SPTR') return { id: 'sptr', nome: 'SPTR' };
+  const propria = SALAS_CALDAS_PROPRIAS[_salaChave(n).replace(/ /g, '')];
+  if (propria) { const c = CONFIG.salas.find(s => s.id === propria); if (c) return { id: c.id, nome: c.nome }; }
+  if (ehHotelCaldas(n)) return { id: 'externo-cn', nome: 'Externo', digitado: n };
+  return { id: null, nome: n };
+}
+
 function normalizarSala(sala, captadorNome) {
   if (!sala) return sala;
   if (salaDigitadaCanon(sala) === 'SPTR') return 'SPTR';
@@ -2919,8 +2967,8 @@ function onOutraSalaInput() {
   const val = document.getElementById('fieldOutraSala').value.trim();
   document.querySelectorAll('#salaChips .sala-chip').forEach(c => c.classList.remove('selected'));
   if (val) {
-    // "São Pedro" digitado vira a sala SPTR (com as regras da SPTR)
-    salaAtual = salaDigitadaCanon(val) === 'SPTR' ? { id: 'sptr', nome: 'SPTR' } : { id: null, nome: val };
+    // "São Pedro" → SPTR; hotel de Caldas → Externo (guarda o nome digitado)
+    salaAtual = salaDoCampoLivre(val);
     sessionStorage.setItem('yv_sala_atual', JSON.stringify(salaAtual));
     document.getElementById('btnIniciarQuiz').disabled = false;
   } else {
@@ -3487,6 +3535,7 @@ function _buildLeadObject(leadId, verdict, iso, isPartial) {
     modalidade: ans.modalidade || null,
     mode:     mode==='low'?'<3k':'>3k',
     sala:     salaAtual ? salaDigitadaCanon(salaAtual.nome) : '—',
+    pontoCaptacao: (salaAtual && salaAtual.digitado) || null,
     captador: captador  ? captador.nome  : '—',
     time:     new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
     date:     new Date().toLocaleDateString('pt-BR'),
