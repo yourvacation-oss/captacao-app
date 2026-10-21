@@ -127,6 +127,7 @@
       transition: border-color .15s; box-sizing: border-box;
     }
     .login-search:focus { border-color: var(--gold); }
+    #loginSelectPanel:not(.hidden) { width: 100%; max-width: 380px; display: flex; flex-direction: column; align-items: center; }
     .login-list { max-height: 52vh; overflow-y: auto; }
     .header {
       background: var(--navy2); border-bottom: 1px solid var(--border);
@@ -829,7 +830,7 @@
   <!-- PAINEL: lista de captadores -->
   <div id="loginSelectPanel">
     <div class="login-title">Quem está captando hoje?</div>
-    <div class="login-sub">Selecione seu nome e insira a senha<br>para iniciar a sessão.</div>
+    <div class="login-sub">Digite seu nome e insira a senha<br>para iniciar a sessão.</div>
     <input class="login-search" id="loginSearch" type="text" placeholder="🔍 Buscar nome..." oninput="filtrarLoginList(this.value)" autocomplete="off" />
     <div class="login-list" id="loginList"></div>
     <div id="pwPanel" class="hidden">
@@ -1793,7 +1794,17 @@ function initLogin() {
   if (savedNome) {
     const todos = [...CONFIG.captadores, ...JSON.parse(localStorage.getItem('yv_equipe_extras')||'[]')];
     const found = todos.find(c => c.nome === savedNome);
-    if (found) { captador = found; document.getElementById('screenLogin').classList.add('hidden'); afterLogin(); return; }
+    if (found) {
+      captador = found;
+      // v2.33: se fechou o app antes de criar a senha pessoal, volta para essa etapa
+      if (usaSenhaPadrao(found.nome)) {
+        document.getElementById('loginSelectPanel').classList.add('hidden');
+        document.getElementById('screenLogin').classList.remove('hidden');
+        abrirCriarSenha(found.nome);
+        return;
+      }
+      document.getElementById('screenLogin').classList.add('hidden'); afterLogin(); return;
+    }
   }
   renderLoginList(null);
   document.getElementById('loginSelectPanel').classList.remove('hidden');
@@ -1801,13 +1812,16 @@ function initLogin() {
   document.getElementById('screenLogin').classList.remove('hidden');
 }
 
+// v2.33: a lista de nomes só aparece depois de digitar pelo menos 2 letras
+function _semAcento(t) { return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); }
 function renderLoginList(selected, filtro) {
   const ul = document.getElementById('loginList');
   const ROLE_LABEL = { captador:'Captador(a)', sublider:'Sublíder', lider:'Líder', ceo:'CEO' };
+  if (filtro === undefined) { const inp = document.getElementById('loginSearch'); filtro = inp ? inp.value : ''; }
+  const busca = _semAcento(filtro);
+  if (busca.length < 2) { ul.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px 0;text-align:center">Digite pelo menos 2 letras do seu nome</div>'; return; }
   const todos = [...CONFIG.captadores, ...JSON.parse(localStorage.getItem('yv_equipe_extras')||'[]')];
-  const lista = filtro
-    ? todos.filter(c => c.nome.toLowerCase().includes(filtro.toLowerCase()))
-    : todos;
+  const lista = todos.filter(c => _semAcento(c.nome).includes(busca));
   if (!lista.length) { ul.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px 0;text-align:center">Nenhum resultado</div>'; return; }
   ul.innerHTML = lista.map(c => {
     const ini = c.nome.split(' ').map(p=>p[0]).slice(0,2).join('');
@@ -1958,7 +1972,10 @@ function trocarCaptador() {
   captador = null;
   salaAtual = null;
   loginSelectedNome = null;
+  document.getElementById('loginSearch').value = '';
   renderLoginList(null);
+  document.getElementById('loginSelectPanel').classList.remove('hidden');
+  document.getElementById('criarSenhaPanel').classList.add('hidden');
   document.getElementById('pwPanel').classList.add('hidden');
   document.getElementById('screenLogin').classList.remove('hidden');
 }
@@ -6854,7 +6871,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.32';
+const APP_VERSAO = '2.33';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
