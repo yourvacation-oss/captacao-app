@@ -35,8 +35,9 @@ São Pedro, Caldas Novas, Atibaia, Ribeirão Preto.
 1. Ler o trecho relevante antes de editar.
 2. Editar com strings únicas.
 3. Validar o JS: extrair o conteúdo do <script> e rodar node --check.
-4. Commit com mensagem clara e push na main.
-5. Conferir no ar depois de 2 min (aba anônima) em yourvacation-oss.github.io/captacao-app.
+4. Versão: subir APP_VERSAO (index.html), "versao" em version.json e CACHE_NAME (sw.js). Sem isso os celulares não recebem o aviso "Atualizar".
+5. Commit com mensagem clara e push na main.
+6. Conferir no ar depois de 2 min (aba anônima) em yourvacation-oss.github.io/captacao-app.
 
 ## Cuidados
 - Captador desativado = linha comentada com // em CONFIG.captadores. Reativar = remover o //.

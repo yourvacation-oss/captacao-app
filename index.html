@@ -6819,17 +6819,51 @@ window.abrirTrocarSenha = openPwChange;
 // ── PWA — Service Worker ──────────────────────────────────
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
-  // Recarrega automaticamente quando o SW detecta nova versão do app
+  // O SW avisa quando ativou (inclusive na 1ª instalação): confere a versão antes de avisar
   navigator.serviceWorker.addEventListener('message', e => {
-    if (e.data && e.data.type === 'APP_UPDATED') {
-      // Mostra um toast pedindo confirmação antes de recarregar
-      const toast = document.createElement('div');
-      toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1a2340;color:#fff;padding:14px 20px;border-radius:12px;border:1px solid #c9a84c;z-index:99999;max-width:90%;text-align:center;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.4)';
-      toast.innerHTML = '🔄 Nova versão disponível. <a href="javascript:location.reload()" style="color:#c9a84c;text-decoration:underline;font-weight:700;margin-left:8px">Recarregar agora</a>';
-      document.body.appendChild(toast);
-    }
+    if (e.data && e.data.type === 'APP_UPDATED') qqVerificarVersao();
   });
 }
+
+// ═══ AVISO DE VERSÃO NOVA (v2.31) ═══
+// O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
+// para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
+// A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
+const APP_VERSAO = '2.31';
+function qqVerificarVersao() {
+  if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
+  fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
+    .then(r => r.ok ? r.json() : null)
+    .then(j => { if (j && j.versao && j.versao !== APP_VERSAO) qqMostrarAvisoVersao(); })
+    .catch(() => {});
+}
+function qqMostrarAvisoVersao() {
+  if (document.getElementById('qqAvisoVersao')) return;
+  const emPesquisa = document.getElementById('screenQuiz').classList.contains('active');
+  const el = document.createElement('div');
+  el.id = 'qqAvisoVersao';
+  el.style.cssText = 'position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);width:calc(100% - 32px);max-width:420px;background:#1a2340;color:#fff;padding:14px 16px;border-radius:12px;border:1px solid #c9a84c;z-index:99998;box-shadow:0 4px 16px rgba(0,0,0,.4);display:flex;align-items:center;gap:12px;font-size:13px;line-height:1.4';
+  el.innerHTML = '<div style="flex:1"><strong style="color:#F1D691">Versão nova do QualifiQ</strong><br>'
+    + (emPesquisa ? 'Termine a pesquisa atual e toque em Atualizar.' : 'Toque em Atualizar para usar a versão nova.') + '</div>'
+    + '<button id="qqBtnAtualizar" style="background:#c9a84c;color:#13243A;border:0;border-radius:10px;padding:10px 16px;font-weight:800;font-size:14px;cursor:pointer">Atualizar</button>';
+  document.body.appendChild(el);
+  document.getElementById('qqBtnAtualizar').onclick = qqAtualizarApp;
+}
+function qqAtualizarApp() {
+  const btn = document.getElementById('qqBtnAtualizar');
+  if (btn) { btn.disabled = true; btn.textContent = 'Atualizando…'; }
+  // Pesquisas pendentes ficam salvas no aparelho e são reenviadas depois de recarregar
+  const recarregar = () => location.reload();
+  if (!('serviceWorker' in navigator)) return recarregar();
+  navigator.serviceWorker.getRegistration()
+    .then(reg => reg ? Promise.race([reg.update(), new Promise(r => setTimeout(r, 3000))]) : null)
+    .catch(() => {})
+    .then(recarregar);
+}
+setTimeout(qqVerificarVersao, 10000);
+setInterval(qqVerificarVersao, 5 * 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') qqVerificarVersao(); });
+window.addEventListener('online', qqVerificarVersao);
 
 // ── PWA — Offline queue ───────────────────────────────────
 const OFFLINE_KEY = 'yv_offline_queue';
