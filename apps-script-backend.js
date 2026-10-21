@@ -70,6 +70,14 @@ function getOrCreateSheetByName(sheetName) {
   return sheet;
 }
 
+// v2.29: sala digitada como "São Pedro" (qualquer acento/maiúscula/espaço) é gravada como SPTR.
+// Protege também celulares que ainda estão com versão antiga do app.
+function normalizarSalaDigitada(sala) {
+  const n = String(sala || '').trim();
+  const k = n.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ');
+  return k === 'sao pedro' ? 'SPTR' : n;
+}
+
 function resolverSheet(sala) {
   return getOrCreateSheetByName(SALA_SHEETS[sala] || DEFAULT_SHEET);
 }
@@ -345,6 +353,7 @@ function adicionarColunasFaltantes() {
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
+    if (data.sala !== undefined && data.sala !== null) data.sala = normalizarSalaDigitada(data.sala);
 
     // saveDDP: salva/atualiza registro de DDP na aba DDP do Sheets
     if (data.action === 'saveDDP') {
@@ -427,7 +436,7 @@ function doPost(e) {
               set('EmSala',   u.emSala   ? 'SIM' : '');
               set('TipoSala', u.tipoSala || '');
               set('Venda',    u.venda    ? 'SIM' : '');
-              if (u.sala !== undefined) set('Sala', u.sala);
+              if (u.sala !== undefined) set('Sala', normalizarSalaDigitada(u.sala));
               results.ok++;
               found = true;
               break;
@@ -555,7 +564,7 @@ function doGet(e) {
             const i = cabecalho.indexOf(col);
             if (i >= 0) sheet.getRange(row, i + 1).setValue(val);
           };
-          if (params.sala !== undefined) set('Sala', params.sala);
+          if (params.sala !== undefined) set('Sala', normalizarSalaDigitada(params.sala));
           if (params.emSala !== undefined) set('EmSala', params.emSala === 'true' ? 'SIM' : '');
           if (params.tipoSala !== undefined) set('TipoSala', params.tipoSala);
           if (params.venda !== undefined) set('Venda', params.venda === 'true' ? 'SIM' : '');
@@ -1269,6 +1278,38 @@ function reaplCarCores() {
     });
     Logger.log(`${nome}: ${lastRow - 1} linhas processadas`);
   });
+}
+
+// ── CORREÇÃO ÚNICA (21/10/2026): Sala "São Pedro" → "SPTR" ──
+// Antes, faça backup da planilha. 1º rode simularCorrecaoSalaSaoPedro (só conta, não altera).
+// Depois rode corrigirSalaSaoPedroParaSPTR. Altera só as colunas Sala e PontoCaptacao
+// quando o valor é "São Pedro" (com ou sem acento/maiúscula/espaço). Pode rodar de novo sem risco.
+function simularCorrecaoSalaSaoPedro() { return _corrigirSalaSaoPedro(false); }
+function corrigirSalaSaoPedroParaSPTR() { return _corrigirSalaSaoPedro(true); }
+function _corrigirSalaSaoPedro(aplicar) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const resumo = {};
+  ss.getSheets().forEach(sheet => {
+    const last = sheet.getLastRow();
+    if (last < 2) return;
+    const cabecalho = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    ['Sala', 'PontoCaptacao'].forEach(col => {
+      const i = cabecalho.indexOf(col);
+      if (i < 0) return;
+      const range = sheet.getRange(2, i + 1, last - 1, 1);
+      const vals = range.getValues();
+      let n = 0;
+      vals.forEach(v => {
+        if (v[0] !== '' && v[0] !== 'SPTR' && normalizarSalaDigitada(v[0]) === 'SPTR') { v[0] = 'SPTR'; n++; }
+      });
+      if (n > 0) {
+        resumo[sheet.getName() + ' / ' + col] = n;
+        if (aplicar) range.setValues(vals);
+      }
+    });
+  });
+  Logger.log((aplicar ? 'CORRIGIDO' : 'SIMULAÇÃO (nada alterado)') + ': ' + JSON.stringify(resumo));
+  return resumo;
 }
 
 function jsonResponse(obj) {

@@ -41,6 +41,7 @@ São Pedro, Caldas Novas, Atibaia, Ribeirão Preto.
 ## Cuidados
 - Captador desativado = linha comentada com // em CONFIG.captadores. Reativar = remover o //.
 - Atibaia com operacao null em registros antigos é proposital.
+- Sala digitada "São Pedro" (qualquer acento/maiúscula) é gravada como SPTR: salaDigitadaCanon() no app e normalizarSalaDigitada() no backend. "São Pedro Resort" é outro caso (vai por captador em normalizarSala).
 - Backend retorna { status: 'ok' }: checar res.status === 'ok', não res.ok.
 - Template literals dentro de innerHTML: erro de sintaxe deixa o app em branco.
 - Reimplantar Apps Script: Implantar > Gerenciar implantações > editar > Nova versão. Assim a URL do webhook não muda. "Nova implantação" gera URL nova e exige trocar CONFIG.webhookUrl.

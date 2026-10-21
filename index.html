@@ -1506,8 +1506,16 @@ const SALA_ALIAS_DIRETO = {
   'Atibaia':    'Porta da sala',
   'São Pedro':  'SPTR',  // nome de aba legado → sala correta
 };
+// FIX v2.29: sala digitada como "São Pedro" (com ou sem acento, maiúscula ou espaço) é a SPTR
+function salaDigitadaCanon(nome) {
+  const n = String(nome || '').trim();
+  const k = n.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ');
+  return k === 'sao pedro' ? 'SPTR' : n;
+}
+
 function normalizarSala(sala, captadorNome) {
   if (!sala) return sala;
+  if (salaDigitadaCanon(sala) === 'SPTR') return 'SPTR';
   // Mapeamento direto (sem ambiguidade)
   if (SALA_ALIAS_DIRETO[sala]) return SALA_ALIAS_DIRETO[sala];
   // Nomes antigos de São Pedro → SPTR ou Thermas SP conforme o captador
@@ -2911,7 +2919,8 @@ function onOutraSalaInput() {
   const val = document.getElementById('fieldOutraSala').value.trim();
   document.querySelectorAll('#salaChips .sala-chip').forEach(c => c.classList.remove('selected'));
   if (val) {
-    salaAtual = { id: null, nome: val };
+    // "São Pedro" digitado vira a sala SPTR (com as regras da SPTR)
+    salaAtual = salaDigitadaCanon(val) === 'SPTR' ? { id: 'sptr', nome: 'SPTR' } : { id: null, nome: val };
     sessionStorage.setItem('yv_sala_atual', JSON.stringify(salaAtual));
     document.getElementById('btnIniciarQuiz').disabled = false;
   } else {
@@ -3477,7 +3486,7 @@ function _buildLeadObject(leadId, verdict, iso, isPartial) {
     cidade:   ans.cidade || '—',
     modalidade: ans.modalidade || null,
     mode:     mode==='low'?'<3k':'>3k',
-    sala:     salaAtual ? salaAtual.nome : '—',
+    sala:     salaAtual ? salaDigitadaCanon(salaAtual.nome) : '—',
     captador: captador  ? captador.nome  : '—',
     time:     new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
     date:     new Date().toLocaleDateString('pt-BR'),
@@ -6782,7 +6791,7 @@ function _registrarPI() {
   const pi = {
     id:       Date.now(),
     captador: captador ? captador.nome : '—',
-    sala:     salaAtual ? salaAtual.nome : '—',
+    sala:     salaAtual ? salaDigitadaCanon(salaAtual.nome) : '—',
     dateISO:  iso,
     date:     new Date().toLocaleDateString('pt-BR'),
     time:     new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
