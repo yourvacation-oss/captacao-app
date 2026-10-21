@@ -8,7 +8,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="QualifiQ" />
   <meta name="theme-color" content="#13243A" />
-  <link rel="manifest" href="manifest.json" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap">
+<link rel="manifest" href="manifest.json" />
   <title>QualifiQ · Your Vacation</title>
   <style>
     :root {
@@ -51,84 +53,103 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       min-height: 100dvh; display: flex; flex-direction: column;
     }
+    /* ═══ TELA DE ENTRADA (v2.34) — mockup aprovado; cores fixas, não muda com o tema ═══ */
     #screenLogin {
       position: fixed; inset: 0; z-index: 200;
-      background: var(--navy);
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: flex-start;
-      padding: 40px 24px 32px; overflow-y: auto;
+      background: #172438; color: #FFFFFF;
+      font-family: Poppins, system-ui, -apple-system, 'Segoe UI', sans-serif;
+      overflow-y: auto; -webkit-overflow-scrolling: touch;
     }
     #screenLogin.hidden { display: none !important; }
-    .login-logo  { width: 72px; height: 72px; margin-bottom: 18px; flex-shrink: 0; }
-    .login-title { font-size: 20px; font-weight: 800; color: var(--gold2); margin-bottom: 4px; }
-    .login-sub   { font-size: 13px; color: var(--muted); margin-bottom: 30px; text-align: center; line-height: 1.5; }
-    .login-list  { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 9px; }
-    .login-item {
-      background: var(--navy2); border: 2px solid var(--border);
-      border-radius: 12px; padding: 14px 16px;
-      cursor: pointer; display: flex; align-items: center; gap: 12px;
-      transition: border-color .15s, background .15s;
+    .lg-wrap {
+      width: 100%; max-width: 420px; min-height: 100%; margin: 0 auto;
+      display: flex; flex-direction: column; align-items: center;
+      padding: clamp(40px, 11vh, 96px) 28px calc(24px + env(safe-area-inset-bottom));
     }
-    .login-item:active { transform: scale(.985); }
-    .login-item.selected { border-color: var(--gold); background: rgba(201,168,76,.09); }
-    .login-avatar {
-      width: 38px; height: 38px; border-radius: 50%;
-      background: var(--navy3); border: 1.5px solid var(--border);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 14px; font-weight: 800; color: var(--gold2); flex-shrink: 0;
-    }
-    .login-info  { flex: 1; min-width: 0; }
-    .login-name  { font-size: 14px; font-weight: 700; }
-    .login-role  { font-size: 11px; color: var(--muted); margin-top: 2px; }
-    #pwPanel {
-      width: 100%; max-width: 380px; margin-top: 16px;
-      background: var(--navy2); border: 1.5px solid var(--border);
-      border-radius: 14px; padding: 20px;
-    }
-    #pwPanel.hidden { display: none !important; }
-    .pw-label  { font-size: 12px; color: var(--muted); margin-bottom: 8px; font-weight: 600; }
-    .pw-name   { font-size: 15px; font-weight: 800; color: var(--gold2); margin-bottom: 14px; }
-    .pw-wrap   { position: relative; margin-bottom: 14px; }
-    .pw-input  {
-      width: 100%; background: var(--navy3); border: 2px solid var(--border);
-      border-radius: 10px; padding: 14px 44px 14px 14px;
-      font-size: 16px; font-weight: 600; color: var(--text);
-      outline: none; font-family: inherit; letter-spacing: 2px;
+    .lg-logo  { width: 150px; height: auto; display: block; flex-shrink: 0; }
+    .lg-brand { margin-top: 28px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .lg-nome  { font-size: 30px; font-weight: 800; letter-spacing: .5px; line-height: 1; }
+    .lg-nome span { color: #F1D691; }
+    .lg-tag   { font-size: 14px; font-weight: 500; color: #A9B6C8; }
+    #loginSelectPanel, #pwPanel { width: 100%; display: flex; flex-direction: column; }
+    #loginSelectPanel { margin-top: 56px; gap: 10px; }
+    #pwPanel { margin-top: 48px; gap: 14px; }
+    #loginSelectPanel.hidden, #pwPanel.hidden { display: none !important; }
+    .lg-label { font-size: 16px; font-weight: 600; color: #F1D691; }
+    .lg-field {
+      display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 16px;
+      background: #20304A; border: 1.5px solid #3A4D6B; border-radius: 14px;
       transition: border-color .15s;
     }
-    .pw-input:focus { border-color: var(--gold); }
-    .pw-toggle {
-      position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
-      font-size: 18px; cursor: pointer; user-select: none; line-height: 1;
+    .lg-field:focus-within { border-color: #F1D691; }
+    .lg-field svg { flex-shrink: 0; stroke: #A9B6C8; }
+    .lg-field:focus-within > svg { stroke: #F1D691; }
+    .lg-field input {
+      flex: 1; min-width: 0; height: 100%; background: transparent; border: none; outline: none;
+      color: #FFFFFF; font-family: inherit; font-size: 16px;
     }
-    .pw-error  { font-size: 12px; color: var(--red); margin-top: -8px; margin-bottom: 10px; min-height: 16px; }
+    .lg-field input::placeholder { color: #A9B6C8; letter-spacing: 0; }
+    .lg-dica { font-size: 13px; color: #A9B6C8; line-height: 1.45; }
+    .login-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+    .login-item {
+      display: flex; align-items: center; gap: 14px; width: 100%; min-height: 64px; padding: 10px 14px;
+      background: #20304A; border: 1px solid #3A4D6B; border-radius: 14px;
+      color: #FFFFFF; font-family: inherit; text-align: left; cursor: pointer;
+    }
+    .login-item:active { transform: scale(.985); }
+    .login-item:focus-visible { outline: 2px solid #F1D691; outline-offset: 2px; }
+    .login-avatar {
+      width: 40px; height: 40px; flex-shrink: 0; border-radius: 10px;
+      background: #F1D691; color: #172438; font-weight: 800; font-size: 15px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .login-info  { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+    .login-name  { font-size: 15px; font-weight: 600; }
+    .login-role  { font-size: 13px; color: #A9B6C8; }
+    .login-item > svg { flex-shrink: 0; stroke: #A9B6C8; }
+    .pw-quem   { display: flex; align-items: center; gap: 14px; }
+    .pw-quem .login-avatar { width: 48px; height: 48px; border-radius: 12px; font-size: 17px; }
+    .pw-ola    { font-size: 18px; font-weight: 600; }
+    #pwPanel .lg-label { margin-top: 8px; font-size: 15px; }
+    #pwInput   { letter-spacing: 2px; }
+    .pw-olho   { width: 44px; height: 44px; margin-right: -10px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; padding: 0; }
+    .pw-error  { font-size: 13px; color: #FF8A8A; line-height: 1.4; }
+    .pw-error:empty { display: none; }
     .btn-login {
-      display: block; width: 100%; padding: 15px;
-      background: linear-gradient(135deg, var(--gold), var(--gold2));
-      color: var(--navy); border: none; border-radius: 10px;
-      font-size: 15px; font-weight: 800; cursor: pointer; font-family: inherit;
+      display: block; width: 100%; height: 56px;
+      background: linear-gradient(60deg, #F1D691 0%, #D9B66E 100%);
+      color: #172438; border: none; border-radius: 14px;
+      font-size: 17px; font-weight: 800; cursor: pointer; font-family: inherit;
     }
+    #pwPanel .btn-login { margin-top: 6px; }
     .btn-login:active { transform: scale(.98); }
-    #pwChangePanel { width: 100%; max-width: 380px; }
-    #pwChangePanel.hidden { display: none !important; }
-    #forgotPanel { width: 100%; max-width: 380px; }
-    #forgotPanel.hidden { display: none !important; }
-    #criarSenhaPanel.hidden { display: none !important; }
-    .pwc-title { font-size: 19px; font-weight: 800; color: var(--gold2); margin-bottom: 6px; }
-    .pwc-sub   { font-size: 13px; color: var(--muted); margin-bottom: 28px; text-align: center; }
-    .pwc-form  { width: 100%; }
-    .pwc-label { font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 6px; display: block; }
-    .pwc-error { font-size: 12px; color: var(--red); min-height: 16px; margin-bottom: 8px; }
-    .login-search {
-      width: 100%; max-width: 380px; margin-bottom: 12px;
-      background: var(--navy2); border: 2px solid var(--border);
-      border-radius: 10px; padding: 12px 14px;
-      font-size: 14px; color: var(--text); outline: none; font-family: inherit;
-      transition: border-color .15s; box-sizing: border-box;
+    .lg-aviso { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: #1E2E46; border-radius: 12px; }
+    .lg-aviso svg { flex-shrink: 0; }
+    .lg-aviso span { font-size: 13px; line-height: 1.4; color: #D3DCE7; }
+    .lg-link {
+      align-self: center; background: none; border: none; cursor: pointer; font-family: inherit;
+      font-size: 14px; font-weight: 500; color: #F1D691; padding: 10px; min-height: 44px;
     }
-    .login-search:focus { border-color: var(--gold); }
-    #loginSelectPanel:not(.hidden) { width: 100%; max-width: 380px; display: flex; flex-direction: column; align-items: center; }
-    .login-list { max-height: 52vh; overflow-y: auto; }
+    .lg-link.discreto { font-size: 13px; color: #A9B6C8; text-decoration: underline; padding: 4px 10px; min-height: 36px; }
+    .lg-espaco { flex-grow: 1; min-height: 32px; }
+    .lg-rodape { font-size: 12px; color: #8C9BB0; text-align: center; }
+    /* Painéis de senha (criar / trocar / esqueci) no mesmo visual */
+    #pwChangePanel, #forgotPanel, #criarSenhaPanel { width: 100%; margin-top: 48px; }
+    #pwChangePanel.hidden, #forgotPanel.hidden, #criarSenhaPanel.hidden { display: none !important; }
+    .pwc-title { font-size: 19px; font-weight: 700; color: #F1D691; margin-bottom: 6px; text-align: center; }
+    .pwc-sub   { font-size: 13px; color: #A9B6C8; margin-bottom: 24px; text-align: center; line-height: 1.6; }
+    .pwc-form  { width: 100%; }
+    .pwc-label { font-size: 13px; color: #F1D691; font-weight: 600; margin-bottom: 6px; display: block; }
+    .pwc-error { font-size: 13px; color: #FF8A8A; min-height: 16px; margin-bottom: 8px; }
+    .pw-wrap   { position: relative; margin-bottom: 14px; }
+    .pw-input  {
+      width: 100%; height: 56px; background: #20304A; border: 1.5px solid #3A4D6B;
+      border-radius: 14px; padding: 0 16px; font-size: 16px; color: #FFFFFF;
+      outline: none; font-family: inherit; letter-spacing: 2px; transition: border-color .15s;
+    }
+    .pw-input::placeholder { color: #A9B6C8; letter-spacing: 0; }
+    .pw-input:focus { border-color: #F1D691; }
+    #screenLogin .btn-voltar { margin-top: 10px; background: transparent; color: #A9B6C8; border: 1.5px solid #3A4D6B; font-size: 14px; font-weight: 600; }
     .header {
       background: var(--navy2); border-bottom: 1px solid var(--border);
       padding: 12px 18px; display: flex; align-items: center; gap: 8px;
@@ -823,29 +844,51 @@
 </head>
 <body>
 
-<!-- LOGIN -->
+<!-- LOGIN (v2.34 — mockup aprovado) -->
 <div id="screenLogin">
-  <svg class="login-logo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" rx="18" fill="#1f2b4d"/><rect x="4" y="4" width="43" height="43" rx="9" fill="#c9a84c"/><rect x="53" y="4" width="43" height="43" rx="9" fill="#c9a84c"/><rect x="4" y="53" width="43" height="43" rx="9" fill="#c9a84c"/><rect x="53" y="53" width="43" height="43" rx="9" fill="#c9a84c"/><text x="25.5" y="38" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="30" fill="#1a2340">Y</text><text x="74.5" y="38" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="30" fill="#1a2340">O</text><text x="25.5" y="87" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="30" fill="#1a2340">U</text><text x="74.5" y="87" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="30" fill="#1a2340">R</text></svg>
+ <div class="lg-wrap">
+  <img class="lg-logo" src="logo-yourvacation.png" alt="Your Vacation" width="150" height="175">
+  <div class="lg-brand">
+    <div class="lg-nome">Qualifi<span>Q</span></div>
+    <div class="lg-tag">Captação e qualificação</div>
+  </div>
 
-  <!-- PAINEL: lista de captadores -->
+  <!-- PASSO 1: buscar o nome (a lista só aparece depois de 2 letras) -->
   <div id="loginSelectPanel">
-    <div class="login-title">Quem está captando hoje?</div>
-    <div class="login-sub">Digite seu nome e insira a senha<br>para iniciar a sessão.</div>
-    <input class="login-search" id="loginSearch" type="text" placeholder="🔍 Buscar nome..." oninput="filtrarLoginList(this.value)" autocomplete="off" />
-    <div class="login-list" id="loginList"></div>
-    <div id="pwPanel" class="hidden">
-      <div class="pw-label">SENHA DE ACESSO</div>
-      <div class="pw-name" id="pwName"></div>
-      <div class="pw-wrap">
-        <input class="pw-input" id="pwInput" type="password" placeholder="········"
-          autocomplete="current-password" oninput="pwClearError()" onkeydown="pwKeydown(event)" />
-        <div class="pw-toggle" id="pwToggle" onclick="togglePw()">👁</div>
-      </div>
-      <div class="pw-error" id="pwError"></div>
-      <button class="btn-login" onclick="doLogin()">Entrar →</button>
-      <button type="button" style="background:none;border:none;font-size:12px;color:var(--muted);cursor:pointer;text-decoration:underline;margin-top:10px;padding:4px 0;width:100%;text-align:center" onclick="mostrarAjudaSenha()">Esqueci minha senha</button>
-      <button id="pwResetEmergencial" class="hidden" type="button" style="background:#1a4a2a;border:1px solid #2a6a44;color:#a8e0b8;font-size:12px;font-weight:600;cursor:pointer;border-radius:6px;margin-top:8px;padding:8px;width:100%" onclick="pwResetEmergencial()">🔄 Redefinir (usar senha do líder)</button>
+    <label class="lg-label" for="loginSearch">Quem está captando hoje?</label>
+    <div class="lg-field">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="loginSearch" type="text" placeholder="Digite seu nome" oninput="filtrarLoginList(this.value)" autocomplete="off" autocapitalize="words" spellcheck="false" />
     </div>
+    <div class="login-list" id="loginList"></div>
+  </div>
+
+  <!-- PASSO 2: senha (só no 1º acesso deste celular) -->
+  <div id="pwPanel" class="hidden">
+    <div class="pw-quem">
+      <span class="login-avatar" id="pwIniciais"></span>
+      <span class="login-info">
+        <span class="pw-ola">Olá, <span id="pwName"></span>!</span>
+        <span class="login-role" id="pwCargo"></span>
+      </span>
+    </div>
+    <label class="lg-label" for="pwInput">Sua senha</label>
+    <div class="lg-field">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      <input id="pwInput" type="password" autocomplete="current-password" oninput="pwClearError()" onkeydown="pwKeydown(event)" />
+      <button type="button" class="pw-olho" id="pwToggle" aria-label="Mostrar senha" onclick="togglePw()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
+    <div class="pw-error" id="pwError" role="alert"></div>
+    <button type="button" class="btn-login" onclick="doLogin()">Entrar</button>
+    <div class="lg-aviso">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F1D691" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <span>Você só faz isso uma vez. Nas próximas, o app abre direto.</span>
+    </div>
+    <button type="button" class="lg-link" onclick="voltarParaBusca()">Não é você? Trocar nome</button>
+    <button type="button" class="lg-link discreto" onclick="mostrarAjudaSenha()">Esqueci minha senha</button>
+    <button id="pwResetEmergencial" class="hidden" type="button" style="background:#1a4a2a;border:1px solid #2a6a44;color:#a8e0b8;font-size:13px;font-weight:600;cursor:pointer;border-radius:10px;padding:10px;width:100%;font-family:inherit" onclick="pwResetEmergencial()">Redefinir (usar senha do líder)</button>
   </div>
 
   <!-- PAINEL: esqueci minha senha -->
@@ -853,28 +896,28 @@
     <div class="pwc-title">🔒 Senha esquecida?</div>
     <div class="pwc-sub" style="text-align:center;margin-bottom:20px;line-height:1.7">
       Clique no botão abaixo para redefinir sua senha<br>
-      de volta para a <strong style="color:var(--gold2)">senha padrão</strong> cadastrada pelo líder.<br><br>
-      <span style="font-size:11px;color:var(--muted)">Nenhum dado será perdido.</span>
+      de volta para a <strong style="color:#F1D691">senha padrão</strong> cadastrada pelo líder.<br><br>
+      <span style="font-size:12px;color:#A9B6C8">Nenhum dado será perdido.</span>
     </div>
     <button class="btn-login" onclick="resetarSenhaPadrao()" style="margin-bottom:10px">🔑 Redefinir para senha padrão</button>
-    <button class="btn-login" onclick="fecharAjudaSenha()" style="background:var(--navy2);color:var(--muted);font-size:13px">← Voltar</button>
+    <button class="btn-login btn-voltar" onclick="fecharAjudaSenha()">← Voltar</button>
   </div>
 
   <!-- PAINEL: criar senha pessoal (primeiro login) -->
   <div id="criarSenhaPanel" class="hidden">
     <div class="pwc-title">🔐 Crie sua senha pessoal</div>
     <div class="pwc-sub" style="text-align:center;margin-bottom:20px;line-height:1.6">
-      Olá, <strong id="criarSenhaNome" style="color:var(--gold2)"></strong>!<br>
+      Olá, <strong id="criarSenhaNome" style="color:#F1D691"></strong>!<br>
       É a primeira vez que você acessa. Crie uma senha pessoal para proteger sua conta.
     </div>
     <div class="pwc-form">
       <label class="pwc-label">NOVA SENHA</label>
       <div class="pw-wrap" style="margin-bottom:14px">
-        <input class="pw-input" id="criarSenhaInput" type="password" placeholder="Mínimo 4 caracteres" autocomplete="new-password" style="background:var(--navy2);" onkeydown="criarSenhaKeydown(event)" />
+        <input class="pw-input" id="criarSenhaInput" type="password" placeholder="Mínimo 4 caracteres" autocomplete="new-password" onkeydown="criarSenhaKeydown(event)" />
       </div>
       <label class="pwc-label">CONFIRMAR SENHA</label>
       <div class="pw-wrap" style="margin-bottom:6px">
-        <input class="pw-input" id="criarSenhaConfirm" type="password" placeholder="Repita a senha" autocomplete="new-password" style="background:var(--navy2);" onkeydown="criarSenhaKeydown(event)" />
+        <input class="pw-input" id="criarSenhaConfirm" type="password" placeholder="Repita a senha" autocomplete="new-password" onkeydown="criarSenhaKeydown(event)" />
       </div>
       <div class="pwc-error" id="criarSenhaError"></div>
       <button class="btn-login" onclick="confirmarCriarSenha()">Salvar e entrar →</button>
@@ -888,21 +931,25 @@
     <div class="pwc-form">
       <label class="pwc-label">SENHA ATUAL</label>
       <div class="pw-wrap" style="margin-bottom:14px">
-        <input class="pw-input" id="pwOld" type="password" placeholder="Senha atual" autocomplete="current-password" style="background:var(--navy2);" oninput="pwcClearError()" />
+        <input class="pw-input" id="pwOld" type="password" placeholder="Senha atual" autocomplete="current-password" oninput="pwcClearError()" />
       </div>
       <label class="pwc-label">NOVA SENHA</label>
       <div class="pw-wrap" style="margin-bottom:14px">
-        <input class="pw-input" id="pwNew" type="password" placeholder="Mínimo 4 caracteres" autocomplete="new-password" style="background:var(--navy2);" oninput="pwcClearError()" />
+        <input class="pw-input" id="pwNew" type="password" placeholder="Mínimo 4 caracteres" autocomplete="new-password" oninput="pwcClearError()" />
       </div>
       <label class="pwc-label">CONFIRMAR NOVA SENHA</label>
       <div class="pw-wrap" style="margin-bottom:6px">
-        <input class="pw-input" id="pwConf" type="password" placeholder="Repita a nova senha" autocomplete="new-password" style="background:var(--navy2);" oninput="pwcClearError()" />
+        <input class="pw-input" id="pwConf" type="password" placeholder="Repita a nova senha" autocomplete="new-password" oninput="pwcClearError()" />
       </div>
       <div class="pwc-error" id="pwcError"></div>
       <button class="btn-login" onclick="doChangePw()">Salvar nova senha</button>
-      <button class="btn" style="margin-top:10px;background:var(--navy2);color:var(--muted);border:1.5px solid var(--border);font-size:14px" onclick="closePwChange()">← Voltar</button>
+      <button class="btn-login btn-voltar" onclick="closePwChange()">← Voltar</button>
     </div>
   </div>
+
+  <div class="lg-espaco"></div>
+  <div class="lg-rodape">Your Vacation · uso interno da equipe</div>
+ </div>
 </div>
 
 <!-- HEADER -->
@@ -1814,26 +1861,26 @@ function initLogin() {
 
 // v2.33: a lista de nomes só aparece depois de digitar pelo menos 2 letras
 function _semAcento(t) { return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); }
+const ROLE_LABEL_LOGIN = { captador:'Captador(a)', sublider:'Sublíder', lider:'Líder', ceo:'CEO', supervisor_adm:'Supervisão' };
+function _loginIniciais(nome) { return String(nome || '').split(' ').filter(Boolean).map(p => p[0]).slice(0, 2).join('').toUpperCase(); }
+function _loginCargo(c) { const cargo = ROLE_LABEL_LOGIN[c.cargo] || c.cargo || ''; return c.operacao ? cargo + ' · ' + c.operacao : cargo; }
+function _escHtml(t) { return String(t || '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch])); }
+function _loginTodos() { return [...CONFIG.captadores, ...JSON.parse(localStorage.getItem('yv_equipe_extras')||'[]')]; }
 function renderLoginList(selected, filtro) {
   const ul = document.getElementById('loginList');
-  const ROLE_LABEL = { captador:'Captador(a)', sublider:'Sublíder', lider:'Líder', ceo:'CEO' };
   if (filtro === undefined) { const inp = document.getElementById('loginSearch'); filtro = inp ? inp.value : ''; }
   const busca = _semAcento(filtro);
-  if (busca.length < 2) { ul.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px 0;text-align:center">Digite pelo menos 2 letras do seu nome</div>'; return; }
-  const todos = [...CONFIG.captadores, ...JSON.parse(localStorage.getItem('yv_equipe_extras')||'[]')];
-  const lista = todos.filter(c => _semAcento(c.nome).includes(busca));
-  if (!lista.length) { ul.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px 0;text-align:center">Nenhum resultado</div>'; return; }
-  ul.innerHTML = lista.map(c => {
-    const ini = c.nome.split(' ').map(p=>p[0]).slice(0,2).join('');
-    const sel = selected === c.nome ? ' selected' : '';
-    return `<div class="login-item${sel}" onclick="loginPickNome('${c.nome}')">
-      <div class="login-avatar">${ini}</div>
-      <div class="login-info">
-        <div class="login-name">${c.nome || "—"}</div>
-        <div class="login-role">${ROLE_LABEL[c.cargo] || c.cargo}</div>
-      </div>
-    </div>`;
-  }).join('');
+  if (busca.length < 2) { ul.innerHTML = '<div class="lg-dica">Digite pelo menos 2 letras para encontrar seu nome.</div>'; return; }
+  const lista = _loginTodos().filter(c => _semAcento(c.nome).includes(busca));
+  if (!lista.length) { ul.innerHTML = '<div class="lg-dica">Nenhum nome encontrado. Fale com seu líder.</div>'; return; }
+  const seta = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>';
+  ul.innerHTML = lista.map(c => `<button type="button" class="login-item" data-nome="${_escHtml(c.nome)}" onclick="loginPickNome(this.dataset.nome)">
+      <span class="login-avatar">${_escHtml(_loginIniciais(c.nome))}</span>
+      <span class="login-info">
+        <span class="login-name">${_escHtml(c.nome) || '—'}</span>
+        <span class="login-role">${_escHtml(_loginCargo(c))}</span>
+      </span>${seta}
+    </button>`).join('') + '<div class="lg-dica">Não achou seu nome? Fale com seu líder.</div>';
 }
 function filtrarLoginList(val) {
   renderLoginList(loginSelectedNome, val);
@@ -1841,9 +1888,13 @@ function filtrarLoginList(val) {
 
 function loginPickNome(nome) {
   loginSelectedNome = nome;
-  renderLoginList(nome);
   const panel = document.getElementById('pwPanel');
-  document.getElementById('pwName').textContent = nome;
+  const cfg = _loginTodos().find(c => c.nome === nome) || { nome };
+  document.getElementById('pwName').textContent = nome.split(' ')[0];
+  document.getElementById('pwIniciais').textContent = _loginIniciais(nome);
+  document.getElementById('pwCargo').textContent = _loginCargo(cfg);
+  document.getElementById('pwInput').type = 'password';
+  document.getElementById('loginSelectPanel').classList.add('hidden');
   document.getElementById('pwInput').value = '';
   // Esconder botão de reset emergencial ao abrir
   const btnEr = document.getElementById('pwResetEmergencial');
@@ -1854,6 +1905,16 @@ function loginPickNome(nome) {
   setTimeout(() => document.getElementById('pwInput').focus(), 80);
 }
 
+// "Não é você? Trocar nome": volta para a busca
+function voltarParaBusca() {
+  loginSelectedNome = null;
+  document.getElementById('pwPanel').classList.add('hidden');
+  document.getElementById('pwInput').value = '';
+  document.getElementById('pwError').textContent = '';
+  document.getElementById('loginSelectPanel').classList.remove('hidden');
+  renderLoginList(null);
+  setTimeout(() => document.getElementById('loginSearch').focus(), 80);
+}
 function pwClearError() { document.getElementById('pwError').textContent = ''; }
 function pwKeydown(e)   { if (e.key === 'Enter') doLogin(); }
 
@@ -1870,6 +1931,7 @@ function pwResetEmergencial() {
 function togglePw() {
   const inp = document.getElementById('pwInput');
   inp.type = inp.type === 'password' ? 'text' : 'password';
+  document.getElementById('pwToggle').setAttribute('aria-label', inp.type === 'password' ? 'Mostrar senha' : 'Esconder senha');
 }
 
 async function doLogin() {
@@ -1988,7 +2050,9 @@ function mostrarAjudaSenha() {
 }
 function fecharAjudaSenha() {
   document.getElementById('forgotPanel').classList.add('hidden');
-  document.getElementById('loginSelectPanel').classList.remove('hidden');
+  // volta para a senha da pessoa escolhida; sem ninguém escolhido, para a busca
+  if (loginSelectedNome) document.getElementById('pwPanel').classList.remove('hidden');
+  else document.getElementById('loginSelectPanel').classList.remove('hidden');
 }
 function resetarSenhaPadrao() {
   if (!loginSelectedNome) {
@@ -2012,6 +2076,7 @@ function openPwChange() {
   // Mostra tela de login por cima de tudo, com painel de troca de senha
   document.getElementById('screenLogin').classList.remove('hidden');
   document.getElementById('loginSelectPanel').classList.add('hidden');
+  document.getElementById('pwPanel').classList.add('hidden');
   document.getElementById('pwChangePanel').classList.remove('hidden');
 }
 function closePwChange() {
@@ -6871,7 +6936,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.33';
+const APP_VERSAO = '2.34';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })

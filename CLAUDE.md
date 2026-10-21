@@ -10,6 +10,7 @@ ATENÇÃO: este repositório é PÚBLICO. Nunca registrar aqui senhas, tokens, d
 - index.html: o app inteiro (HTML + CSS + JS em um arquivo, ~6.800 linhas).
 - apps-script-backend.js e _COLAR_NO_APPS_SCRIPT.txt: backend Google Apps Script (mesmo conteúdo).
 - sw.js, manifest.json, ícones: PWA.
+- logo-yourvacation.png: logo oficial usado na tela de entrada.
 - Hospedagem: GitHub Pages, branch main. Push na main publica em 1 a 2 min.
 
 ## Endereço do app
@@ -47,6 +48,7 @@ São Pedro, Caldas Novas, Atibaia, Ribeirão Preto.
 - Backend retorna { status: 'ok' }: checar res.status === 'ok', não res.ok.
 - Backend v9: toda escrita passa por comTrava() (LockService; se ocupado devolve status 'busy' e o app reenvia). Pesquisa sem ID é recusada (code 'sem_id'). Antes de gravar, o ID é procurado em todas as abas (abasDePesquisas()). update_sala_batch devolve not_found_ids; o app guarda essas marcações e tenta de novo (_reenfileirarMarcacaoSemPesquisa).
 - Chave de acesso da lista de pesquisas: fica só em Propriedades do script (CHAVE_LEADS), nunca no código. Funções no Apps Script: gerarChaveLeads (gera, ainda não exige, mostra o link #qqchave=), ativarChaveLeads, desativarChaveLeads. O app guarda a chave em yv_chave_leads e manda como ?k=.
+- Tela de entrada (v2.34, mockup aprovado): fundo #172438, dourado #F1D691, fonte Poppins, cores fixas (não seguem o tema claro). Passo 1 = busca (#loginSelectPanel, nomes só com 2+ letras); passo 2 = senha (#pwPanel, "Olá, [nome]!"), separado da busca. voltarParaBusca() = "Não é você? Trocar nome".
 - Template literals dentro de innerHTML: erro de sintaxe deixa o app em branco.
 - Reimplantar Apps Script: Implantar > Gerenciar implantações > editar > Nova versão. Assim a URL do webhook não muda. "Nova implantação" gera URL nova e exige trocar CONFIG.webhookUrl.
 - Usuários podem ver versão antiga por cache: recarregar forçado (Cmd+Shift+R).
