@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════
 // Your Vacation — Qualificador de Captação
-// Google Apps Script Backend — v10
+// Google Apps Script Backend — v11
 // Cole este código em: Planilha > Extensões > Apps Script
 // Depois: Implantar > Gerenciar implantações > Editar > Nova versão > Implantar
 // ═══════════════════════════════════════════════════════
@@ -408,6 +408,12 @@ function _doPost(e) {
       return jsonResponse({ status: 'ok', removed: 0, message: 'DDP agora usa aba no Sheets — dedup automático no upsert' });
     }
 
+    // Gestão da equipe (v11)
+    if (data._action === 'equipe_adicionar')  return equipeAdicionar(data);
+    if (data._action === 'equipe_redefinir')  return equipeRedefinirSenha(data);
+    if (data._action === 'equipe_desativar')  return equipeDesativar(data);
+    if (data._action === 'equipe_minha_senha') return equipeMinhaSenha(data);
+
     // update_sala: atualiza EmSala, TipoSala e Venda de um lead existente
     if (data._action === 'update_sala') {
       const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -690,6 +696,130 @@ function criarAbaEquipe() {
   if (novos.length) sheet.getRange(sheet.getLastRow() + 1, 1, novos.length, EQUIPE_COLUNAS.length).setValues(novos);
   Logger.log('Aba Equipe: ' + novos.length + ' membros acrescentados (' + membros.length + ' ativos no app).');
   return novos.length;
+}
+
+// ── GESTÃO DA EQUIPE PELO APP (v11) ──
+// Toda ação vem com quem pede (por) e a senha dele (porSenha), conferida aqui.
+// CEO gerencia todas as operações; líder e sublíder só a própria.
+const OPERACOES_EQUIPE = ['Caldas Novas', 'São Pedro', 'Atibaia', 'Ribeirão Preto'];
+const CARGOS_EQUIPE = ['captador', 'sublider', 'lider', 'supervisor_adm', 'ceo'];
+const CARGOS_GESTORES = ['ceo', 'lider', 'sublider'];
+
+function _sha256Hex(t) {
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(t), Utilities.Charset.UTF_8)
+    .map(b => ((b + 256) % 256).toString(16).padStart(2, '0')).join('');
+}
+function _chaveNome(t) { return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+function _abaEquipe() { return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(EQUIPE_SHEET); }
+// Linha (1-based) e dados de um membro pelo nome (ignora acento/maiúscula)
+function _acharMembro(nome) {
+  const sheet = _abaEquipe();
+  if (!sheet || sheet.getLastRow() < 2) return null;
+  const cab = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const ix = {}; EQUIPE_COLUNAS.forEach(c => { ix[c] = cab.indexOf(c); });
+  const linhas = sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues();
+  const alvo = _chaveNome(nome);
+  for (let i = 0; i < linhas.length; i++) {
+    if (_chaveNome(linhas[i][ix.Nome]) === alvo) {
+      const r = linhas[i], ativo = String(r[ix.Ativo]).trim().toUpperCase();
+      return { sheet, ix, linha: i + 2, nome: String(r[ix.Nome]).trim(), cargo: String(r[ix.Cargo]).trim(),
+        operacao: String(r[ix.Operacao]).trim(), senhaHash: String(r[ix.SenhaHash]).trim(), ativo: ativo !== 'NÃO' && ativo !== 'NAO' };
+    }
+  }
+  return null;
+}
+function _gravar(m, col, valor) { if (m.ix[col] >= 0) m.sheet.getRange(m.linha, m.ix[col] + 1).setValue(valor); }
+function _registrarHistorico(por, acao, alvo, detalhe) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let h = ss.getSheetByName('Equipe-Histórico');
+  if (!h) { h = ss.insertSheet('Equipe-Histórico'); h.getRange(1, 1, 1, 5).setValues([['Quando', 'Quem fez', 'Ação', 'Membro', 'Detalhe']]); h.setFrozenRows(1); }
+  h.appendRow([new Date().toISOString(), por, acao, alvo, detalhe || '']);
+}
+// Confere a senha de alguém. Depois de 5 erros seguidos, bloqueia por 15 min.
+function _conferirSenha(nome, senha) {
+  const cache = CacheService.getScriptCache(), k = 'erros_' + _chaveNome(nome);
+  const erros = Number(cache.get(k) || 0);
+  if (erros >= 5) return { ok: false, code: 'bloqueado' };
+  const m = _acharMembro(nome);
+  if (!m || !m.ativo || !senha || _sha256Hex(senha) !== m.senhaHash) {
+    cache.put(k, String(erros + 1), 900);
+    return { ok: false, code: 'senha_nao_confere' };
+  }
+  cache.remove(k);
+  return { ok: true, membro: m };
+}
+// Quem pede pode mexer neste membro/operação?
+function _autorizarGestor(data, operacaoAlvo, cargoAlvo) {
+  const c = _conferirSenha(data.por, data.porSenha);
+  if (!c.ok) return c;
+  const g = c.membro;
+  if (CARGOS_GESTORES.indexOf(g.cargo) < 0) return { ok: false, code: 'sem_permissao' };
+  if (g.cargo !== 'ceo') {
+    if (!operacaoAlvo || operacaoAlvo !== g.operacao) return { ok: false, code: 'outra_operacao' };
+    if (cargoAlvo === 'ceo' || cargoAlvo === 'supervisor_adm') return { ok: false, code: 'sem_permissao' };
+  }
+  return { ok: true, gestor: g };
+}
+function _respostaEquipe(extra) { return jsonResponse(Object.assign({ status: 'ok', equipe: lerEquipe() || [] }, extra || {})); }
+
+function equipeAdicionar(data) {
+  const nome = String(data.nome || '').replace(/\s+/g, ' ').trim();
+  const cargo = String(data.cargo || '').trim(), operacao = String(data.operacao || '').trim();
+  const sala = String(data.sala || '').trim(), senha = String(data.senhaProvisoria || '');
+  if (nome.length < 3) return jsonResponse({ status: 'error', code: 'nome_invalido' });
+  if (CARGOS_EQUIPE.indexOf(cargo) < 0) return jsonResponse({ status: 'error', code: 'cargo_invalido' });
+  if (OPERACOES_EQUIPE.indexOf(operacao) < 0) return jsonResponse({ status: 'error', code: 'operacao_obrigatoria' });
+  if (senha.length < 4) return jsonResponse({ status: 'error', code: 'senha_curta' });
+  const a = _autorizarGestor(data, operacao, cargo);
+  if (!a.ok) return jsonResponse({ status: 'error', code: a.code });
+  if (!_abaEquipe()) return jsonResponse({ status: 'error', code: 'sem_aba' });
+  const agora = new Date().toISOString();
+  const existente = _acharMembro(nome);
+  if (existente && existente.ativo) return jsonResponse({ status: 'error', code: 'ja_existe' });
+  if (existente) { // estava desativado: reativa com os dados novos
+    if (a.gestor.cargo !== 'ceo' && existente.operacao && existente.operacao !== a.gestor.operacao) return jsonResponse({ status: 'error', code: 'outra_operacao' });
+    _gravar(existente, 'Cargo', cargo); _gravar(existente, 'Operacao', operacao); _gravar(existente, 'Sala', sala);
+    _gravar(existente, 'SenhaHash', _sha256Hex(senha)); _gravar(existente, 'Ativo', 'SIM'); _gravar(existente, 'ResetEm', agora);
+    _registrarHistorico(a.gestor.nome, 'reativar', existente.nome, cargo + ' · ' + operacao + (sala ? ' · ' + sala : ''));
+    return _respostaEquipe({ reativado: true });
+  }
+  const sheet = _abaEquipe();
+  sheet.getRange(sheet.getLastRow() + 1, 1, 1, EQUIPE_COLUNAS.length)
+    .setValues([[nome, cargo, operacao, sala, _sha256Hex(senha), 'SIM', '', a.gestor.nome, agora]]);
+  _registrarHistorico(a.gestor.nome, 'adicionar', nome, cargo + ' · ' + operacao + (sala ? ' · ' + sala : ''));
+  return _respostaEquipe();
+}
+function equipeRedefinirSenha(data) {
+  const senha = String(data.senhaProvisoria || '');
+  if (senha.length < 4) return jsonResponse({ status: 'error', code: 'senha_curta' });
+  const alvo = _acharMembro(data.nome);
+  if (!alvo) return jsonResponse({ status: 'error', code: 'nao_encontrado' });
+  const a = _autorizarGestor(data, alvo.operacao, alvo.cargo);
+  if (!a.ok) return jsonResponse({ status: 'error', code: a.code });
+  _gravar(alvo, 'SenhaHash', _sha256Hex(senha));
+  _gravar(alvo, 'ResetEm', new Date().toISOString());
+  _registrarHistorico(a.gestor.nome, 'redefinir senha', alvo.nome, '');
+  return _respostaEquipe();
+}
+function equipeDesativar(data) {
+  const alvo = _acharMembro(data.nome);
+  if (!alvo) return jsonResponse({ status: 'error', code: 'nao_encontrado' });
+  const a = _autorizarGestor(data, alvo.operacao, alvo.cargo);
+  if (!a.ok) return jsonResponse({ status: 'error', code: a.code });
+  if (_chaveNome(alvo.nome) === _chaveNome(a.gestor.nome)) return jsonResponse({ status: 'error', code: 'nao_pode_si_mesmo' });
+  _gravar(alvo, 'Ativo', 'NÃO');
+  _registrarHistorico(a.gestor.nome, 'desativar', alvo.nome, '');
+  return _respostaEquipe();
+}
+// A pessoa troca a própria senha (ao criar a senha pessoal ou em "Alterar senha")
+function equipeMinhaSenha(data) {
+  const nova = String(data.senhaNova || '');
+  if (nova.length < 4) return jsonResponse({ status: 'error', code: 'senha_curta' });
+  const c = _conferirSenha(data.nome, data.senhaAtual);
+  if (!c.ok) return jsonResponse({ status: 'error', code: c.code });
+  _gravar(c.membro, 'SenhaHash', _sha256Hex(nova));
+  _registrarHistorico(c.membro.nome, 'trocar a própria senha', c.membro.nome, '');
+  return _respostaEquipe();
 }
 
 function _doGet(e) {

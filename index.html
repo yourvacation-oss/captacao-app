@@ -534,7 +534,13 @@
       border: 1px solid var(--border); border-radius: 10px;
       padding: 10px 14px; margin-bottom: 18px; line-height: 1.5;
     }
-    .eq-pw-eye { cursor: pointer; font-size: 14px; margin-left: 4px; }
+    .eq-acoes  { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .eq-btn    { background: none; border: 1px solid rgba(201,168,76,.35); border-radius: 8px; color: var(--gold); font-size: 12px; font-weight: 600; padding: 6px 10px; min-height: 32px; cursor: pointer; font-family: inherit; }
+    .eq-btn.perigo { border-color: rgba(255,120,120,.4); color: #ff8a8a; }
+    .eq-btn.neutro { border-color: rgba(136,153,187,.35); color: var(--muted); }
+    .eq-btn:disabled { opacity: .5; cursor: default; }
+    .eq-tag    { font-size: 10px; background: rgba(201,168,76,.15); color: var(--gold); border-radius: 8px; padding: 2px 7px; margin-left: 6px; }
+    .eq-op-titulo { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin: 18px 0 8px; }
     /* ── TIME RANGE ── */
     .tr-section { background: var(--navy2); border-radius: 14px; padding: 16px; margin-bottom: 16px; border: 1px solid var(--border); }
     .tr-section-hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
@@ -595,12 +601,12 @@
     .sala-item-name { font-size: 14px; font-weight: 600; }
     .sala-item-cidade { font-size: 11px; color: var(--muted); }
     .sala-item-remove { font-size: 16px; cursor: pointer; color: var(--red); flex-shrink: 0; }
-    #modalEquipe, #modalSala, #modalExport {
+    #modalEquipe, #modalSala, #modalExport, #modalGestor {
       position: fixed; inset: 0; z-index: 300;
       background: rgba(10,15,30,.85);
       display: flex; align-items: flex-end; justify-content: center;
     }
-    #modalEquipe.hidden, #modalSala.hidden, #modalExport.hidden { display: none !important; }
+    #modalEquipe.hidden, #modalSala.hidden, #modalExport.hidden, #modalGestor.hidden { display: none !important; }
     /* resumo inline do perfil */
     .hc-resumo { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
     .hc-chip { border-radius: 6px; font-size: 10px; font-weight: 600; padding: 3px 8px; }
@@ -895,11 +901,10 @@
   <div id="forgotPanel" class="hidden">
     <div class="pwc-title">🔒 Senha esquecida?</div>
     <div class="pwc-sub" style="text-align:center;margin-bottom:20px;line-height:1.7">
-      Clique no botão abaixo para redefinir sua senha<br>
-      de volta para a <strong style="color:#F1D691">senha padrão</strong> cadastrada pelo líder.<br><br>
+      Peça ao seu <strong style="color:#F1D691">líder</strong> para redefinir sua senha<br>
+      na aba Equipe do app. Ele vai te passar uma <strong style="color:#F1D691">senha provisória</strong>.<br><br>
       <span style="font-size:12px;color:#A9B6C8">Nenhum dado será perdido.</span>
     </div>
-    <button class="btn-login" onclick="resetarSenhaPadrao()" style="margin-bottom:10px">🔑 Redefinir para senha padrão</button>
     <button class="btn-login btn-voltar" onclick="fecharAjudaSenha()">← Voltar</button>
   </div>
 
@@ -1119,7 +1124,7 @@
       <button class="eq-add-btn" onclick="abrirModalEquipe()">+ Novo membro</button>
     </div>
     <div class="eq-config-note">
-      💡 Membros adicionados aqui ficam salvos neste dispositivo. Use a lista padrão para garantir acesso em qualquer aparelho ou aba anônima.
+      💡 Cadastros, senhas provisórias e desativações feitos aqui ficam salvos na planilha e valem em todos os celulares.
     </div>
     <div id="equipeList"></div>
     <div class="salas-section" id="salasSection">
@@ -1223,9 +1228,11 @@
       <option value="captador">Captador(a)</option>
       <option value="sublider">Sublíder</option>
       <option value="lider">Líder</option>
-      <option value="ceo">CEO</option>
+      <option value="ceo" id="eqCargoCeo">CEO</option>
     </select>
-    <label class="modal-label">Senha inicial</label>
+    <label class="modal-label">Operação</label>
+    <select class="modal-select" id="eqOperacao" onchange="eqAtualizarSalas()"></select>
+    <label class="modal-label">Senha provisória</label>
     <input class="input-field" id="eqSenha" type="text" placeholder="Mínimo 4 caracteres"
       autocomplete="off" style="font-size:16px" oninput="eqClearError()" />
     <label class="modal-label">Sala (opcional)</label>
@@ -1235,6 +1242,23 @@
     <div class="modal-error" id="eqError"></div>
     <button class="btn btn-gold" style="margin-top:4px" onclick="salvarNovoMembro()">Salvar membro</button>
     <button class="btn btn-ghost" style="margin-top:8px" onclick="fecharModalEquipe()">Cancelar</button>
+  </div>
+</div>
+
+<!-- MODAL CONFIRMAR SENHA DO LÍDER (gestão da equipe) -->
+<div id="modalGestor" class="hidden">
+  <div class="modal-box">
+    <div class="modal-title">🔒 Confirme sua senha</div>
+    <div id="gestorMsg" style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.5">Para mexer na equipe, digite a sua senha de entrada no app.</div>
+    <label class="modal-label" for="gestorSenha">Sua senha</label>
+    <input class="input-field" id="gestorSenha" type="password" autocomplete="current-password" style="font-size:16px" oninput="gestorClearError()" onkeydown="if(event.key==='Enter')gestorConfirmar()" />
+    <div id="gestorInicialWrap" class="hidden">
+      <label class="modal-label" for="gestorInicial">Senha inicial (a primeira que você recebeu)</label>
+      <input class="input-field" id="gestorInicial" type="password" autocomplete="off" style="font-size:16px" oninput="gestorClearError()" onkeydown="if(event.key==='Enter')gestorConfirmar()" />
+    </div>
+    <div class="modal-error" id="gestorError"></div>
+    <button class="btn btn-gold" style="margin-top:4px" id="gestorBtn" onclick="gestorConfirmar()">Confirmar</button>
+    <button class="btn btn-ghost" style="margin-top:8px" onclick="gestorCancelar()">Cancelar</button>
   </div>
 </div>
 
@@ -2005,6 +2029,7 @@ async function doLogin() {
   if (!nome) return;
   const pw = document.getElementById('pwInput').value;
   if (!pw) { document.getElementById('pwError').textContent = 'Insira sua senha.'; return; }
+  _senhaDoLogin = pw; // v2.36: usada para mandar a senha pessoal nova para a planilha
   const hashCorreta = getSenhaHash(nome);
   const hashDigitada = await sha256(pw);
   // FIX v2.25: para quem tem resetSenha, a senha pessoal criada no 1º acesso era
@@ -2060,6 +2085,14 @@ function abrirCriarSenha(nome) {
   setTimeout(() => document.getElementById('criarSenhaInput').focus(), 80);
 }
 
+// v2.36: a senha pessoal também vai para a planilha (vale em qualquer celular e
+// permite conferir quem gerencia a equipe). Se falhar, segue valendo neste celular.
+let _senhaDoLogin = null;
+function _sincronizarMinhaSenha(nome, atual, nova) {
+  if (!atual || !nova || !API.ok() || !navigator.onLine) return;
+  API.postJson({ _action: 'equipe_minha_senha', nome, senhaAtual: atual, senhaNova: nova })
+    .then(r => { if (r && r.status === 'ok') _equipeGuardar(r.equipe); }).catch(() => {});
+}
 async function confirmarCriarSenha() {
   const pw1 = document.getElementById('criarSenhaInput').value;
   const pw2 = document.getElementById('criarSenhaConfirm').value;
@@ -2068,6 +2101,7 @@ async function confirmarCriarSenha() {
   if (pw1 !== pw2)    { errEl.textContent = 'As senhas não coincidem.'; return; }
   const nome = captador.nome;
   await setSenha(nome, pw1);
+  _sincronizarMinhaSenha(nome, _senhaDoLogin, pw1); _senhaDoLogin = null;
   document.getElementById('criarSenhaPanel').classList.add('hidden');
   sessionStorage.setItem('yv_captador', nome);
   try { localStorage.setItem('yv_captador', nome); } catch(e) {}
@@ -2173,6 +2207,7 @@ async function doChangePw() {
     document.getElementById('pwcError').textContent = 'As senhas não coincidem.'; return;
   }
   await setSenha(captador.nome, nw);
+  _sincronizarMinhaSenha(captador.nome, old, nw);
   closePwChange();
   alert('Senha alterada com sucesso!');
 }
@@ -5084,13 +5119,6 @@ function getExtras() { return JSON.parse(localStorage.getItem('yv_equipe_extras'
 function saveExtras(arr) { localStorage.setItem('yv_equipe_extras', JSON.stringify(arr)); }
 function todosOsMembros() { return equipeAtual(); }
 
-// Ocultar/mostrar senha na tela Equipe
-const eqPwState = {};
-function toggleEqPw(nome) {
-  eqPwState[nome] = !eqPwState[nome];
-  const maskEl = document.querySelector(`.eq-pw-mask[data-nome="${nome}"]`);
-  if (maskEl) maskEl.textContent = eqPwState[nome] ? (getSenha(nome)||'—') : '••••••';
-}
 
 // ══════════════════════════════════════════════════════
 // DDP — Desempenho Diário de Penetração
@@ -6799,57 +6827,133 @@ function ddpRecalcParque() {
 
 // ── FIM DDP ──
 
+// ═══ EQUIPE — gestão pela planilha (v2.36) ═══
+// CEO gerencia todas as operações; líder e sublíder só a própria.
+function _ehCeo() { return captador && captador.cargo === 'ceo'; }
+function podeGerenciar(m) {
+  if (!captador || !['ceo','lider','sublider'].includes(captador.cargo)) return false;
+  if (_ehCeo()) return true;
+  return !!m.operacao && m.operacao === captador.operacao && !['ceo','supervisor_adm'].includes(m.cargo);
+}
+function _escEq(t) { return String(t || '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch])); }
 function showEquipe() {
   hideAll(); show('screenEquipe');
-  const ROLE = { captador:'Captador(a)', sublider:'Sublíder', lider:'Líder', ceo:'CEO' };
-  const todos  = todosOsMembros();
-  const extras = getExtras();
-  const list   = document.getElementById('equipeList');
-
-  if (!todos.length) {
-    list.innerHTML = '<div class="hist-empty">Nenhum membro cadastrado.</div>';
-  } else {
-    list.innerHTML = todos.map((m, idx) => {
-      const ini      = m.nome.split(' ').map(p=>p[0]).slice(0,2).join('');
-      const isExtra  = idx >= CONFIG.captadores.length;
-      const removeBtn = isExtra
-        ? `<div class="eq-remove" onclick="removerMembro('${m.nome}')">✕</div>`
-        : `<div style="width:26px;flex-shrink:0"></div>`;
-      const tag = isExtra
-        ? '<span style="font-size:10px;background:rgba(201,168,76,.15);color:var(--gold);border-radius:8px;padding:2px 7px;margin-left:6px">novo</span>'
-        : '';
-      const nomeEsc = m.nome.replace(/'/g,"\\'");
-      const resetBtn = temAcessoTotal(captador)
-        ? `<button style="background:none;border:1px solid rgba(201,168,76,.3);border-radius:6px;color:var(--gold);font-size:11px;padding:4px 8px;cursor:pointer;flex-shrink:0" onclick="redefinirSenha('${nomeEsc}')">🔑 Redefinir</button>`
-        : '';
-      // Botão de suporte temporário — qualquer membro (exceto CEO), visível para lider/ceo logado
+  const ROLE = { captador:'Captador(a)', sublider:'Sublíder', lider:'Líder', ceo:'CEO', supervisor_adm:'Supervisão' };
+  const nomesExtras = new Set(getExtras().map(x => x.nome));
+  const visiveis = todosOsMembros().filter(m => _ehCeo() || m.operacao === captador.operacao || nomesExtras.has(m.nome));
+  const list = document.getElementById('equipeList');
+  if (!visiveis.length) { list.innerHTML = '<div class="hist-empty">Nenhum membro cadastrado.</div>'; renderSalasList(); return; }
+  // agrupa por operação (CEO vê todas)
+  const grupos = {};
+  visiveis.forEach(m => { const g = m.operacao || 'Sem operação'; (grupos[g] = grupos[g] || []).push(m); });
+  const ordem = [...OPERACOES, 'Sem operação'].filter(g => grupos[g]);
+  list.innerHTML = ordem.map(g => {
+    const titulo = ordem.length > 1 ? `<div class="eq-op-titulo">${_escEq(g)} · ${grupos[g].length}</div>` : '';
+    return titulo + grupos[g].sort((a, b) => a.nome.localeCompare(b.nome)).map(m => {
+      const ini = m.nome.split(' ').filter(Boolean).map(p => p[0]).slice(0,2).join('').toUpperCase();
+      const local = nomesExtras.has(m.nome);
+      const nomeAttr = _escEq(m.nome);
+      const souEu = captador && m.nome === captador.nome;
+      const acoes = [];
+      if (local) {
+        acoes.push(`<button class="eq-btn perigo" data-nome="${nomeAttr}" onclick="removerMembro(this.dataset.nome)">Remover deste celular</button>`);
+      } else if (podeGerenciar(m)) {
+        acoes.push(`<button class="eq-btn" data-nome="${nomeAttr}" onclick="redefinirSenha(this.dataset.nome)">🔑 Redefinir senha</button>`);
+        if (!souEu) acoes.push(`<button class="eq-btn perigo" data-nome="${nomeAttr}" onclick="desativarMembro(this.dataset.nome)">Desativar</button>`);
+      }
+      // Suporte temporário (recurso local, como antes)
       const suporteAtivo = getSuporteTemp(m.nome);
-      const suporteBtn = (temAcessoTotal(captador) && m.cargo !== 'ceo')
-        ? suporteAtivo
-          ? `<button style="background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.5);border-radius:6px;color:var(--gold);font-size:11px;padding:4px 8px;cursor:pointer;flex-shrink:0" onclick="cancelarSuporteTemp('${nomeEsc}')">✕ Suporte</button>`
-          : `<button style="background:none;border:1px solid rgba(136,153,187,.3);border-radius:6px;color:var(--muted);font-size:11px;padding:4px 8px;cursor:pointer;flex-shrink:0" onclick="abrirSuporteTemp('${nomeEsc}')">↔ Suporte</button>`
-        : '';
-      const suporteInfo = suporteAtivo
-        ? `<div style="font-size:10px;color:var(--gold);margin-top:2px">↔ Suporte: ${suporteAtivo.operacoes.join(', ')} até ${suporteAtivo.expira}</div>`
-        : '';
-      return `<div class="eq-card">
-        <div class="eq-av">${ini}</div>
+      if (temAcessoTotal(captador) && m.cargo !== 'ceo') {
+        acoes.push(suporteAtivo
+          ? `<button class="eq-btn" data-nome="${nomeAttr}" onclick="cancelarSuporteTemp(this.dataset.nome)">✕ Suporte</button>`
+          : `<button class="eq-btn neutro" data-nome="${nomeAttr}" onclick="abrirSuporteTemp(this.dataset.nome)">↔ Suporte</button>`);
+      }
+      const suporteInfo = suporteAtivo ? `<div style="font-size:11px;color:var(--gold);margin-top:2px">↔ Suporte: ${_escEq(suporteAtivo.operacoes.join(', '))} até ${_escEq(suporteAtivo.expira)}</div>` : '';
+      return `<div class="eq-card" style="align-items:flex-start">
+        <div class="eq-av">${_escEq(ini)}</div>
         <div class="eq-info">
-          <div class="eq-name">${m.nome}${tag}</div>
-          <div class="eq-meta">${ROLE[m.cargo]||m.cargo}${m.sala ? ' · 🏢 '+m.sala : ''} · Senha: <span class="eq-pw-mask" data-nome="${m.nome}">••••••</span> <span class="eq-pw-eye" onclick="toggleEqPw('${nomeEsc}')">👁️</span></div>
+          <div class="eq-name">${_escEq(m.nome)}${local ? '<span class="eq-tag">só neste celular</span>' : ''}${souEu ? '<span class="eq-tag">você</span>' : ''}</div>
+          <div class="eq-meta">${_escEq(ROLE[m.cargo] || m.cargo)}${m.operacao ? ' · ' + _escEq(m.operacao) : ''}${m.sala ? ' · 🏢 ' + _escEq(m.sala) : ''}</div>
           ${suporteInfo}
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-          ${suporteBtn}
-          ${resetBtn}
-          ${removeBtn}
+          ${acoes.length ? '<div class="eq-acoes">' + acoes.join('') + '</div>' : ''}
         </div>
       </div>`;
     }).join('');
-  }
-
-  // Salas (só lider/ceo)
+  }).join('');
   renderSalasList();
+}
+
+// Envia uma ação de equipe para a planilha, pedindo a senha de quem gerencia.
+let _gestorSenha = null; // só na memória, some ao fechar o app
+let _gestorPendente = null;
+const EQ_ERROS = {
+  senha_nao_confere: 'Senha não confere.', bloqueado: 'Muitas tentativas erradas. Espere 15 minutos.',
+  sem_permissao: 'Você não tem permissão para isso.', outra_operacao: 'Você só pode gerenciar a sua operação.',
+  ja_existe: 'Já existe alguém ativo com esse nome.', nome_invalido: 'Informe o nome completo.',
+  cargo_invalido: 'Escolha o cargo.', operacao_obrigatoria: 'Escolha a operação.', senha_curta: 'A senha provisória precisa de pelo menos 4 caracteres.',
+  nao_encontrado: 'Membro não encontrado na planilha.', nao_pode_si_mesmo: 'Você não pode desativar a si mesmo.',
+  sem_aba: 'A planilha ainda não tem a aba Equipe. Peça ao Erick para rodar criarAbaEquipe.',
+};
+function pedirSenhaGestor(msg, pedirInicial) {
+  return new Promise(resolve => {
+    _gestorPendente = resolve;
+    document.getElementById('gestorMsg').textContent = msg || 'Para mexer na equipe, digite a sua senha de entrada no app.';
+    document.getElementById('gestorSenha').value = '';
+    document.getElementById('gestorInicial').value = '';
+    document.getElementById('gestorInicialWrap').classList.toggle('hidden', !pedirInicial);
+    document.getElementById('gestorError').textContent = '';
+    document.getElementById('modalGestor').classList.remove('hidden');
+    setTimeout(() => document.getElementById('gestorSenha').focus(), 80);
+  });
+}
+function gestorClearError() { document.getElementById('gestorError').textContent = ''; }
+function gestorCancelar() { document.getElementById('modalGestor').classList.add('hidden'); if (_gestorPendente) _gestorPendente(null); _gestorPendente = null; }
+function gestorConfirmar() {
+  const senha = document.getElementById('gestorSenha').value;
+  const precisaInicial = !document.getElementById('gestorInicialWrap').classList.contains('hidden');
+  const inicial = document.getElementById('gestorInicial').value;
+  if (!senha) { document.getElementById('gestorError').textContent = 'Digite sua senha.'; return; }
+  if (precisaInicial && !inicial) { document.getElementById('gestorError').textContent = 'Digite também a senha inicial.'; return; }
+  document.getElementById('modalGestor').classList.add('hidden');
+  const r = _gestorPendente; _gestorPendente = null;
+  if (r) r({ senha, inicial: precisaInicial ? inicial : null });
+}
+async function equipeAcao(payload) {
+  if (!navigator.onLine) { alert('Sem internet. Para mexer na equipe, conecte-se e tente de novo.'); return null; }
+  for (let tentativa = 0; tentativa < 3; tentativa++) {
+    if (!_gestorSenha) {
+      const r = await pedirSenhaGestor(tentativa ? 'Senha não confere. Tente de novo.' : null, false);
+      if (!r) return null;
+      _gestorSenha = r.senha;
+    }
+    const res = await API.postJson({ ...payload, por: captador.nome, porSenha: _gestorSenha });
+    if (!res) { alert('Não consegui falar com a planilha. Tente de novo em instantes.'); return null; }
+    if (res.status === 'ok') { _equipeGuardar(res.equipe); return res; }
+    if (res.code === 'senha_nao_confere') {
+      // A senha digitada vale neste celular, mas a planilha ainda tem a senha inicial: atualiza uma vez
+      const local = await sha256(_gestorSenha);
+      const valeAqui = local === getSenhaHash(captador.nome) || local === localStorage.getItem('yv_pw_' + captador.nome);
+      const senhaDigitada = _gestorSenha; _gestorSenha = null;
+      if (valeAqui) {
+        const r = await pedirSenhaGestor('Primeira vez gerenciando pela planilha: digite sua senha atual e a senha inicial que você recebeu.', true);
+        if (!r) return null;
+        const at = await API.postJson({ _action: 'equipe_minha_senha', nome: captador.nome, senhaAtual: r.inicial, senhaNova: r.senha });
+        if (at && at.status === 'ok') { _gestorSenha = r.senha; _equipeGuardar(at.equipe); continue; }
+        alert(at && at.code === 'bloqueado' ? EQ_ERROS.bloqueado : 'A senha inicial não confere. Peça ao CEO para redefinir sua senha.');
+        return null;
+      }
+      continue;
+    }
+    if (res.code === 'bloqueado') _gestorSenha = null;
+    alert(EQ_ERROS[res.code] || ('Não foi possível: ' + (res.code || res.message || 'erro')));
+    return null;
+  }
+  return null;
+}
+function _equipeGuardar(equipe) {
+  if (Array.isArray(equipe) && equipe.some(m => m && m.ativo)) {
+    localStorage.setItem(EQUIPE_CACHE_KEY, JSON.stringify({ em: new Date().toISOString(), membros: equipe }));
+  }
 }
 
 function renderSalasList() {
@@ -6881,35 +6985,42 @@ function abrirModalEquipe() {
   document.getElementById('eqSenha').value = '';
   document.getElementById('eqCargo').value = 'captador';
   document.getElementById('eqError').textContent = '';
-  const sel = document.getElementById('eqSala');
-  sel.innerHTML = '<option value="">— Sem sala fixa —</option>' +
-    getTodasSalas().map(s => `<option value="${s.nome}">${s.nome}</option>`).join('');
-  sel.value = '';
+  // CEO escolhe a operação; líder/sublíder ficam presos à própria
+  const ops = _ehCeo() ? OPERACOES : [captador.operacao].filter(Boolean);
+  const selOp = document.getElementById('eqOperacao');
+  selOp.innerHTML = (ops.length > 1 ? '<option value="">— Escolha a operação —</option>' : '') + ops.map(o => `<option value="${_escEq(o)}">${_escEq(o)}</option>`).join('');
+  selOp.disabled = ops.length === 1;
+  document.getElementById('eqCargoCeo').hidden = !_ehCeo();
+  eqAtualizarSalas();
   document.getElementById('modalEquipe').classList.remove('hidden');
   setTimeout(() => document.getElementById('eqNome').focus(), 80);
+}
+function eqAtualizarSalas() {
+  const op = document.getElementById('eqOperacao').value;
+  const salas = op ? [...new Set([...(SALAS_POR_OPERACAO[op] || []), ...getSalasExtras().filter(s => !s.operacao || s.operacao === op).map(s => s.nome)])] : [];
+  const sel = document.getElementById('eqSala');
+  sel.innerHTML = '<option value="">— Sem sala fixa —</option>' + salas.map(s => `<option value="${_escEq(s)}">${_escEq(s)}</option>`).join('');
+  sel.value = '';
 }
 function fecharModalEquipe() { document.getElementById('modalEquipe').classList.add('hidden'); }
 function eqClearError() { document.getElementById('eqError').textContent = ''; }
 
 async function salvarNovoMembro() {
-  const nome  = document.getElementById('eqNome').value.trim();
-  const cargo = document.getElementById('eqCargo').value;
-  const senha = document.getElementById('eqSenha').value.trim();
-  const sala  = document.getElementById('eqSala').value.trim();
+  const nome     = document.getElementById('eqNome').value.replace(/\s+/g, ' ').trim();
+  const cargo    = document.getElementById('eqCargo').value;
+  const operacao = document.getElementById('eqOperacao').value;
+  const senha    = document.getElementById('eqSenha').value.trim();
+  const sala     = document.getElementById('eqSala').value.trim();
   const errEl = document.getElementById('eqError');
-  if (!nome) { errEl.textContent = 'Informe o nome completo.'; return; }
-  if (senha.length < 4) { errEl.textContent = 'Senha deve ter no mínimo 4 caracteres.'; return; }
-  if (todosOsMembros().find(m => m.nome.toLowerCase() === nome.toLowerCase())) {
-    errEl.textContent = 'Já existe um membro com esse nome.'; return;
-  }
-  const extras = getExtras();
-  const obj = { nome, cargo };
-  if (sala) obj.sala = sala;
-  extras.push(obj);
-  saveExtras(extras);
-  await setSenha(nome, senha);
+  if (nome.length < 3 || !nome.includes(' ')) { errEl.textContent = 'Informe o nome completo.'; return; }
+  if (!operacao) { errEl.textContent = 'Escolha a operação.'; return; }
+  if (senha.length < 4) { errEl.textContent = 'A senha provisória precisa de pelo menos 4 caracteres.'; return; }
+  if (todosOsMembros().find(m => _semAcento(m.nome) === _semAcento(nome))) { errEl.textContent = 'Já existe um membro com esse nome.'; return; }
   fecharModalEquipe();
+  const res = await equipeAcao({ _action: 'equipe_adicionar', nome, cargo, operacao, sala, senhaProvisoria: senha });
+  if (!res) { document.getElementById('modalEquipe').classList.remove('hidden'); return; }
   showEquipe();
+  alert(`✅ ${nome} ${res.reativado ? 'foi reativado(a)' : 'foi cadastrado(a)'}.\n\nPasse a senha provisória para ele(a): ${senha}\nNo primeiro acesso, o app pede para criar uma senha pessoal.`);
 }
 
 function abrirSuporteTemp(nome) {
@@ -6936,16 +7047,22 @@ function abrirSuporteTemp(nome) {
   alert(`✅ Suporte ativado!\n${nome} → ${opFinal} até ${expira}`);
 }
 
-function redefinirSenha(nome) {
-  if (!confirm(`Redefinir a senha de "${nome}"?\n\nEle precisará criar uma nova senha pessoal no próximo login.`)) return;
-  // Remove senha personalizada → no próximo login cairá no fluxo "criar senha"
-  localStorage.removeItem('yv_pw_' + nome);
-  if (captador && captador.nome === nome) {
-    captador = null;
-    afterLogout();
-  }
+async function redefinirSenha(nome) {
+  const prov = prompt(`Nova senha provisória para "${nome}" (mínimo 4 caracteres):`);
+  if (prov === null) return;
+  if (prov.trim().length < 4) { alert(EQ_ERROS.senha_curta); return; }
+  const res = await equipeAcao({ _action: 'equipe_redefinir', nome, senhaProvisoria: prov.trim() });
+  if (!res) return;
   showEquipe();
-  alert(`✅ Senha de "${nome}" redefinida. Ele criará uma nova senha pessoal no próximo login.`);
+  alert(`✅ Senha de "${nome}" redefinida.\n\nPasse a senha provisória: ${prov.trim()}\nNo próximo acesso, o app pede essa senha e depois uma senha pessoal nova.`);
+}
+
+async function desativarMembro(nome) {
+  if (!confirm(`Desativar "${nome}"?\n\nEle(a) não entra mais no app. As pesquisas dele(a) continuam na planilha.`)) return;
+  const res = await equipeAcao({ _action: 'equipe_desativar', nome });
+  if (!res) return;
+  showEquipe();
+  alert(`✅ "${nome}" foi desativado(a).`);
 }
 
 function removerMembro(nome) {
@@ -7006,7 +7123,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.35';
+const APP_VERSAO = '2.36';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
