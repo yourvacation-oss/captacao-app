@@ -74,7 +74,7 @@
     #loginSelectPanel, #pwPanel { width: 100%; display: flex; flex-direction: column; }
     #loginSelectPanel { margin-top: 56px; gap: 10px; }
     #pwPanel { margin-top: 48px; gap: 14px; }
-    #loginSelectPanel.hidden, #pwPanel.hidden { display: none !important; }
+    #loginSelectPanel.hidden, #pwPanel.hidden, #pwInicialWrap.hidden { display: none !important; }
     .lg-label { font-size: 16px; font-weight: 600; color: #F1D691; }
     .lg-field {
       display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 16px;
@@ -885,6 +885,12 @@
       <button type="button" class="pw-olho" id="pwToggle" aria-label="Mostrar senha" onclick="togglePw()">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
+    </div>
+    <div id="pwInicialWrap" class="hidden" style="display:flex;flex-direction:column;gap:10px">
+      <label class="lg-label" for="pwInicial">Senha inicial ou provisória</label>
+      <div class="lg-field">
+        <input id="pwInicial" type="password" autocomplete="off" oninput="pwClearError()" onkeydown="pwKeydown(event)" />
+      </div>
     </div>
     <div class="pw-error" id="pwError" role="alert"></div>
     <button type="button" class="btn-login" onclick="doLogin()">Entrar</button>
@@ -1731,7 +1737,7 @@ function getSenhaHash(nome) {
   const c = todos.find(x => x.nome === nome);
   // Se resetSenha=true OU não tem captador cadastrado, ignora localStorage e usa o CONFIG
   // v2.35: senha pessoal criada antes de o líder redefinir (ResetEm) também é ignorada
-  const stored = (!c || c.resetSenha || senhaPessoalVencida(nome)) ? null : localStorage.getItem('yv_pw_' + nome);
+  const stored = (!c || c.resetSenha) ? null : localStorage.getItem('yv_pw_' + nome);
   if (stored) return stored; // já é um hash
   return c ? (c.senhaHash || null) : null;
 }
@@ -1746,7 +1752,7 @@ async function setSenha(nome, pw) {
 
 // Verifica se o captador ainda usa a senha padrão/provisória (sem senha pessoal válida neste celular).
 function usaSenhaPadrao(nome) {
-  return !localStorage.getItem('yv_pw_' + nome) || senhaPessoalVencida(nome);
+  return !localStorage.getItem('yv_pw_' + nome);
 }
 
 // ═══ EQUIPE CENTRALIZADA (v2.35) ═══
@@ -1767,7 +1773,7 @@ function equipeAtual() {
   if (!central) return [...CONFIG.captadores, ...extras];
   const ativos = central.filter(m => m.ativo).map(m => ({
     nome: m.nome, cargo: m.cargo || 'captador', operacao: m.operacao || null,
-    ...(m.sala ? { sala: m.sala } : {}), senhaHash: m.senhaHash || '', resetEm: m.resetEm || '',
+    ...(m.sala ? { sala: m.sala } : {}),
   }));
   const nomes = new Set(central.map(m => m.nome)); // desativado na planilha não volta pelos extras
   return [...ativos, ...extras.filter(x => !nomes.has(x.nome))];
@@ -1775,7 +1781,8 @@ function equipeAtual() {
 function equipeSincronizar() {
   if (!API.ok() || !navigator.onLine) return Promise.resolve(false);
   const k = qqParamChave();
-  return fetch(CONFIG.webhookUrl + '?action=listarEquipe' + (k ? '&' + k : ''), { cache: 'no-store' })
+  // sala=_ : num backend antigo (sem listarEquipe) a resposta vem vazia, sem baixar as pesquisas
+  return fetch(CONFIG.webhookUrl + '?action=listarEquipe&sala=_' + (k ? '&' + k : ''), { cache: 'no-store' })
     .then(r => r.ok ? r.json() : null)
     .then(j => {
       if (!j || j.status !== 'ok' || !Array.isArray(j.equipe) || !j.equipe.some(m => m && m.ativo)) return false;
@@ -1787,21 +1794,35 @@ function equipeSincronizar() {
     })
     .catch(() => false);
 }
-// Senha redefinida pelo líder (ResetEm) depois que a pessoa criou a senha pessoal
 function _membro(nome) { return equipeAtual().find(m => m.nome === nome) || null; }
-function senhaPessoalVencida(nome) {
-  const m = _membro(nome);
-  if (!m || !m.resetEm || !localStorage.getItem('yv_pw_' + nome)) return false;
-  return (localStorage.getItem('yv_pw_em_' + nome) || '') < m.resetEm;
-}
-// Entrada automática bloqueada se a senha foi redefinida depois do último login neste celular
-function loginVencidoPorReset(nome) {
-  const m = _membro(nome);
-  return !!(m && m.resetEm && (localStorage.getItem('yv_login_em') || '') < m.resetEm);
+// v2.37: com a equipe vindo da planilha, quem confere a senha é a planilha (equipe_login).
+// Sem internet, vale só a senha pessoal já salva neste celular.
+function _equipeServidorAtivo() { return !!_equipeCentral(); }
+// Ao abrir com internet: a planilha diz se este celular precisa entrar de novo
+// (senha redefinida pelo líder depois do último login, ou pessoa desativada).
+function equipeVerificarSessao() {
+  if (!_equipeServidorAtivo() || !captador || !navigator.onLine || !API.ok()) return Promise.resolve();
+  const nome = captador.nome;
+  return API.postJson({ _action: 'equipe_sessao', nome, desde: localStorage.getItem('yv_login_em') || '' })
+    .then(r => {
+      if (!r || r.code !== 'refazer_login' || !captador || captador.nome !== nome) return;
+      localStorage.removeItem('yv_pw_' + nome); localStorage.removeItem('yv_pw_em_' + nome);
+      sessionStorage.removeItem('yv_captador');
+      try { localStorage.removeItem('yv_captador'); } catch (e) {}
+      captador = null;
+      document.getElementById('screenLogin').classList.remove('hidden');
+      ['criarSenhaPanel','pwChangePanel','forgotPanel'].forEach(id => document.getElementById(id).classList.add('hidden'));
+      if (_membro(nome)) {
+        loginPickNome(nome);
+        document.getElementById('pwError').textContent = 'Sua senha foi redefinida pelo líder. Entre com a senha provisória.';
+      } else {
+        voltarParaBusca();
+      }
+    }).catch(() => {});
 }
 function _marcarLogin() { try { localStorage.setItem('yv_login_em', new Date().toISOString()); } catch (e) {} }
 setInterval(equipeSincronizar, 30 * 60 * 1000);
-window.addEventListener('online', () => equipeSincronizar());
+window.addEventListener('online', () => equipeSincronizar().then(equipeVerificarSessao));
 function temAcessoTotal(c) {
   return c && ['sublider','lider','ceo','supervisor_adm'].includes(c.cargo);
 }
@@ -1921,11 +1942,10 @@ function initLogin() {
   if (savedNome) {
     const todos = equipeAtual();
     const found = todos.find(c => c.nome === savedNome);
-    if (found && loginVencidoPorReset(found.nome)) {
-      // v2.35: o líder redefiniu a senha depois do último login neste celular
+    if (found && _equipeServidorAtivo() && usaSenhaPadrao(found.nome)) {
+      // v2.37: fechou o app antes de criar a senha pessoal → entra de novo com a provisória
       document.getElementById('screenLogin').classList.remove('hidden');
       loginPickNome(found.nome);
-      document.getElementById('pwError').textContent = 'Sua senha foi redefinida pelo líder. Entre com a senha provisória.';
       return;
     }
     if (found) {
@@ -1984,6 +2004,8 @@ function loginPickNome(nome) {
   document.getElementById('pwIniciais').textContent = _loginIniciais(nome);
   document.getElementById('pwCargo').textContent = _loginCargo(cfg);
   document.getElementById('pwInput').type = 'password';
+  document.getElementById('pwInicialWrap').classList.add('hidden');
+  document.getElementById('pwInicial').value = '';
   document.getElementById('loginSelectPanel').classList.add('hidden');
   document.getElementById('pwInput').value = '';
   // Esconder botão de reset emergencial ao abrir
@@ -2028,14 +2050,71 @@ async function doLogin() {
   const nome = loginSelectedNome;
   if (!nome) return;
   const pw = document.getElementById('pwInput').value;
-  if (!pw) { document.getElementById('pwError').textContent = 'Insira sua senha.'; return; }
+  const errEl = document.getElementById('pwError');
+  if (!pw) { errEl.textContent = 'Insira sua senha.'; return; }
   _senhaDoLogin = pw; // v2.36: usada para mandar a senha pessoal nova para a planilha
+  if (!_equipeServidorAtivo()) return _doLoginLegado(nome, pw); // planilha ainda sem a aba Equipe
+  const hashDigitada = await sha256(pw);
+  const pessoalLocal = localStorage.getItem('yv_pw_' + nome);
+  const ehPessoalDaqui = !!pessoalLocal && hashDigitada === pessoalLocal;
+  const btn = document.querySelector('#pwPanel .btn-login');
+  const offline = () => {
+    // Sem internet: só a senha pessoal já usada neste celular
+    if (ehPessoalDaqui) return _entrarAposLogin(nome, true);
+    errEl.textContent = 'Sem internet. Sem conexão, só dá para entrar com a senha que você já usa neste celular.';
+  };
+  if (!navigator.onLine) return offline();
+  const inicialWrap = document.getElementById('pwInicialWrap');
+  btn.disabled = true; btn.textContent = 'Conferindo…';
+  try {
+    // 1ª vez com a senha pessoal só deste celular: atualiza a planilha usando a senha inicial
+    if (!inicialWrap.classList.contains('hidden')) {
+      const inicial = document.getElementById('pwInicial').value;
+      if (!inicial) { errEl.textContent = 'Digite também a senha inicial que você recebeu.'; return; }
+      const at = await API.postJson({ _action: 'equipe_minha_senha', nome, senhaAtual: inicial, senhaNova: pw });
+      if (!at) return offline();
+      if (at.status !== 'ok') { errEl.textContent = at.code === 'bloqueado' ? 'Muitas tentativas erradas. Espere 15 minutos.' : 'A senha inicial não confere. Peça ao seu líder para redefinir sua senha.'; return; }
+      _equipeGuardar(at.equipe);
+      return _entrarAposLogin(nome, true);
+    }
+    const res = await API.postJson({ _action: 'equipe_login', nome, senha: pw });
+    if (!res) return offline();
+    if (res.status === 'ok') return _entrarAposLogin(nome, ehPessoalDaqui);
+    if (res.code === 'sem_id') return _doLoginLegado(nome, pw); // planilha ainda sem a entrada nova
+    if (res.code === 'bloqueado') { errEl.textContent = 'Muitas tentativas erradas. Espere 15 minutos.'; return; }
+    if (ehPessoalDaqui) {
+      inicialWrap.classList.remove('hidden');
+      errEl.textContent = 'Primeira vez com a planilha: digite também a senha inicial (ou provisória) que você recebeu do líder.';
+      setTimeout(() => document.getElementById('pwInicial').focus(), 80);
+      return;
+    }
+    errEl.textContent = 'Senha incorreta. Tente novamente.';
+  } finally { btn.disabled = false; btn.textContent = 'Entrar'; }
+}
+// Senha conferida: entra (senha pessoal) ou pede para criar a senha pessoal (provisória)
+function _entrarAposLogin(nome, pessoal) {
+  captador = _membro(nome);
+  _marcarLogin();
+  sessionStorage.setItem('yv_captador', nome);
+  try { localStorage.setItem('yv_captador', nome); } catch(e) {}
+  if (!pessoal) {
+    localStorage.removeItem('yv_pw_' + nome); localStorage.removeItem('yv_pw_em_' + nome);
+    abrirCriarSenha(nome);
+    return;
+  }
+  _senhaDoLogin = null;
+  document.getElementById('screenLogin').classList.add('hidden');
+  afterLogin();
+}
+
+// Conferência antiga (no celular), usada só enquanto a planilha não tem a aba Equipe
+async function _doLoginLegado(nome, pw) {
   const hashCorreta = getSenhaHash(nome);
   const hashDigitada = await sha256(pw);
   // FIX v2.25: para quem tem resetSenha, a senha pessoal criada no 1º acesso era
   // ignorada nos logins seguintes. Agora valem as duas: a do líder e a pessoal.
-  const vencida = senhaPessoalVencida(nome); // v2.35: líder redefiniu depois da senha pessoal
-  const hashPessoal = vencida ? null : localStorage.getItem('yv_pw_' + nome);
+  const vencida = false;
+  const hashPessoal = localStorage.getItem('yv_pw_' + nome);
   const senhaOk = hashDigitada === hashCorreta || (!!hashPessoal && hashDigitada === hashPessoal);
   if (!senhaOk) {
     // Ajuda o captador a entender: se já tem senha pessoal no localStorage,
@@ -2059,8 +2138,6 @@ async function doLogin() {
   const todosLogin = equipeAtual();
   captador = todosLogin.find(c => c.nome === nome);
   _marcarLogin();
-  // v2.35: entrou com a senha provisória → a pessoal antiga sai e pede uma nova
-  if (vencida) { localStorage.removeItem('yv_pw_' + nome); localStorage.removeItem('yv_pw_em_' + nome); }
   // Salvar login já autenticado — mesmo que vá abrir tela de criar senha depois,
   // o app já sabe quem é (auto-login nas próximas vezes).
   sessionStorage.setItem('yv_captador', nome);
@@ -2100,8 +2177,19 @@ async function confirmarCriarSenha() {
   if (pw1.length < 4) { errEl.textContent = 'Senha deve ter no mínimo 4 caracteres.'; return; }
   if (pw1 !== pw2)    { errEl.textContent = 'As senhas não coincidem.'; return; }
   const nome = captador.nome;
-  await setSenha(nome, pw1);
-  _sincronizarMinhaSenha(nome, _senhaDoLogin, pw1); _senhaDoLogin = null;
+  if (_equipeServidorAtivo()) {
+    if (!navigator.onLine) { errEl.textContent = 'Sem internet. Conecte-se para criar sua senha.'; return; }
+    if (!_senhaDoLogin) { errEl.textContent = 'Entre de novo com a senha provisória.'; return; }
+    const r = await API.postJson({ _action: 'equipe_minha_senha', nome, senhaAtual: _senhaDoLogin, senhaNova: pw1 });
+    if (!r) { errEl.textContent = 'Não consegui falar com a planilha. Tente de novo.'; return; }
+    if (r.status !== 'ok') { errEl.textContent = r.code === 'bloqueado' ? 'Muitas tentativas erradas. Espere 15 minutos.' : 'Não foi possível salvar a senha. Entre de novo com a senha provisória.'; return; }
+    _equipeGuardar(r.equipe);
+    await setSenha(nome, pw1);
+  } else {
+    await setSenha(nome, pw1);
+    _sincronizarMinhaSenha(nome, _senhaDoLogin, pw1);
+  }
+  _senhaDoLogin = null;
   document.getElementById('criarSenhaPanel').classList.add('hidden');
   sessionStorage.setItem('yv_captador', nome);
   try { localStorage.setItem('yv_captador', nome); } catch(e) {}
@@ -2196,18 +2284,23 @@ async function doChangePw() {
   const nw   = document.getElementById('pwNew').value;
   const conf = document.getElementById('pwConf').value;
   if (!captador) return;
-  const hashOld = await sha256(old);
-  if (hashOld !== getSenhaHash(captador.nome)) {
-    document.getElementById('pwcError').textContent = 'Senha atual incorreta.'; return;
+  const errC = document.getElementById('pwcError');
+  if (nw.length < 4) { errC.textContent = 'Nova senha deve ter pelo menos 4 caracteres.'; return; }
+  if (nw !== conf)   { errC.textContent = 'As senhas não coincidem.'; return; }
+  if (_equipeServidorAtivo()) {
+    // v2.37: a planilha confere a senha atual e grava a nova
+    if (!navigator.onLine) { errC.textContent = 'Sem internet. Conecte-se para trocar a senha.'; return; }
+    const r = await API.postJson({ _action: 'equipe_minha_senha', nome: captador.nome, senhaAtual: old, senhaNova: nw });
+    if (!r) { errC.textContent = 'Não consegui falar com a planilha. Tente de novo.'; return; }
+    if (r.status !== 'ok') { errC.textContent = r.code === 'bloqueado' ? 'Muitas tentativas erradas. Espere 15 minutos.' : 'Senha atual incorreta.'; return; }
+    _equipeGuardar(r.equipe);
+    await setSenha(captador.nome, nw);
+  } else {
+    const hashOld = await sha256(old);
+    if (hashOld !== getSenhaHash(captador.nome)) { errC.textContent = 'Senha atual incorreta.'; return; }
+    await setSenha(captador.nome, nw);
+    _sincronizarMinhaSenha(captador.nome, old, nw);
   }
-  if (nw.length < 4) {
-    document.getElementById('pwcError').textContent = 'Nova senha deve ter pelo menos 4 caracteres.'; return;
-  }
-  if (nw !== conf) {
-    document.getElementById('pwcError').textContent = 'As senhas não coincidem.'; return;
-  }
-  await setSenha(captador.nome, nw);
-  _sincronizarMinhaSenha(captador.nome, old, nw);
   closePwChange();
   alert('Senha alterada com sucesso!');
 }
@@ -6932,7 +7025,7 @@ async function equipeAcao(payload) {
     if (res.code === 'senha_nao_confere') {
       // A senha digitada vale neste celular, mas a planilha ainda tem a senha inicial: atualiza uma vez
       const local = await sha256(_gestorSenha);
-      const valeAqui = local === getSenhaHash(captador.nome) || local === localStorage.getItem('yv_pw_' + captador.nome);
+      const valeAqui = local === localStorage.getItem('yv_pw_' + captador.nome);
       const senhaDigitada = _gestorSenha; _gestorSenha = null;
       if (valeAqui) {
         const r = await pedirSenhaGestor('Primeira vez gerenciando pela planilha: digite sua senha atual e a senha inicial que você recebeu.', true);
@@ -7123,7 +7216,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.36';
+const APP_VERSAO = '2.37';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
@@ -7327,7 +7420,7 @@ function _qqIniciarPonte() {
 
 // INIT
 initLogin();
-equipeSincronizar(); // v2.35: atualiza a cópia da equipe no celular
+equipeSincronizar().then(equipeVerificarSessao); // atualiza a equipe e confere se este celular precisa entrar de novo
 offlineFlush(); // tenta reenviar ao carregar se já online
 </script>
 </body>

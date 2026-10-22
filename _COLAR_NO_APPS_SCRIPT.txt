@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════
 // Your Vacation — Qualificador de Captação
-// Google Apps Script Backend — v11
+// Google Apps Script Backend — v12
 // Cole este código em: Planilha > Extensões > Apps Script
 // Depois: Implantar > Gerenciar implantações > Editar > Nova versão > Implantar
 // ═══════════════════════════════════════════════════════
@@ -364,7 +364,15 @@ function abasDePesquisas() {
   return Array.from(new Set(Object.values(SALA_SHEETS))).map(n => ss.getSheetByName(n)).filter(Boolean);
 }
 
-function doPost(e) { return comTrava(() => _doPost(e)); }
+function doPost(e) {
+  // Entrada e conferência de sessão não gravam na planilha: não esperam a trava
+  try {
+    const d = JSON.parse(e.postData.contents);
+    if (d._action === 'equipe_login')  return equipeLogin(d);
+    if (d._action === 'equipe_sessao') return equipeSessao(d);
+  } catch (err) {}
+  return comTrava(() => _doPost(e));
+}
 
 function _doPost(e) {
   try {
@@ -644,9 +652,7 @@ function lerEquipe() {
       cargo:     String(g(r, 'Cargo')).trim(),
       operacao:  String(g(r, 'Operacao')).trim() || null,
       sala:      String(g(r, 'Sala')).trim() || null,
-      senhaHash: String(g(r, 'SenhaHash')).trim(),
       ativo:     String(g(r, 'Ativo')).trim().toUpperCase() !== 'NÃO' && String(g(r, 'Ativo')).trim().toUpperCase() !== 'NAO',
-      resetEm:   _isoTexto(g(r, 'ResetEm')),
     }));
 }
 
@@ -723,7 +729,8 @@ function _acharMembro(nome) {
     if (_chaveNome(linhas[i][ix.Nome]) === alvo) {
       const r = linhas[i], ativo = String(r[ix.Ativo]).trim().toUpperCase();
       return { sheet, ix, linha: i + 2, nome: String(r[ix.Nome]).trim(), cargo: String(r[ix.Cargo]).trim(),
-        operacao: String(r[ix.Operacao]).trim(), senhaHash: String(r[ix.SenhaHash]).trim(), ativo: ativo !== 'NÃO' && ativo !== 'NAO' };
+        operacao: String(r[ix.Operacao]).trim(), senhaHash: String(r[ix.SenhaHash]).trim(), ativo: ativo !== 'NÃO' && ativo !== 'NAO',
+        resetEm: ix.ResetEm >= 0 ? _isoTexto(r[ix.ResetEm]) : '' };
     }
   }
   return null;
@@ -820,6 +827,19 @@ function equipeMinhaSenha(data) {
   _gravar(c.membro, 'SenhaHash', _sha256Hex(nova));
   _registrarHistorico(c.membro.nome, 'trocar a própria senha', c.membro.nome, '');
   return _respostaEquipe();
+}
+
+// Entrada no app: responde só ok ou erro (mesmo limite de tentativas)
+function equipeLogin(data) {
+  const c = _conferirSenha(data.nome, data.senha);
+  return jsonResponse(c.ok ? { status: 'ok' } : { status: 'error', code: c.code });
+}
+// O celular logado desde "desde" ainda vale? (senha redefinida depois ou desativado → refazer login)
+function equipeSessao(data) {
+  const m = _acharMembro(data.nome);
+  if (!m || !m.ativo) return jsonResponse({ status: 'error', code: 'refazer_login' });
+  if (m.resetEm && String(data.desde || '') < m.resetEm) return jsonResponse({ status: 'error', code: 'refazer_login' });
+  return jsonResponse({ status: 'ok' });
 }
 
 function _doGet(e) {
