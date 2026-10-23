@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════
 // Your Vacation — Qualificador de Captação
-// Google Apps Script Backend — v12
+// Google Apps Script Backend — v14
 // Cole este código em: Planilha > Extensões > Apps Script
 // Depois: Implantar > Gerenciar implantações > Editar > Nova versão > Implantar
 // ═══════════════════════════════════════════════════════
@@ -82,12 +82,26 @@ function resolverSheet(sala) {
   return getOrCreateSheetByName(SALA_SHEETS[sala] || DEFAULT_SHEET);
 }
 
-function findRowById(sheet, id) {
+// v14: índice de IDs por aba — a coluna de IDs de cada aba é lida uma vez por execução
+// e guardada num Map (ID → primeira linha onde aparece).
+const _indiceIds = {};
+function _indiceDaAba(sheet) {
+  const nome = sheet.getName();
+  if (_indiceIds[nome]) return _indiceIds[nome];
+  const mapa = new Map();
   const lastRow = sheet.getLastRow();
-  if (lastRow < 2) return -1;
-  const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues().flat();
-  const pos = ids.map(String).indexOf(String(id));
-  return pos >= 0 ? pos + 2 : -1;
+  if (lastRow >= 2) {
+    sheet.getRange(2, 1, lastRow - 1, 1).getValues().forEach((r, i) => {
+      const id = String(r[0]);
+      if (!mapa.has(id)) mapa.set(id, i + 2);
+    });
+  }
+  _indiceIds[nome] = mapa;
+  return mapa;
+}
+function findRowById(sheet, id) {
+  const linha = _indiceDaAba(sheet).get(String(id));
+  return linha ? linha : -1;
 }
 
 // ── PI — armazenado em PropertiesService (invisível na planilha) ──
@@ -370,6 +384,8 @@ function doPost(e) {
     const d = JSON.parse(e.postData.contents);
     if (d._action === 'equipe_login')  return equipeLogin(d);
     if (d._action === 'equipe_sessao') return equipeSessao(d);
+    // v14: marcações de sala (só atualizam células de linhas que já existem) rodam sem a trava
+    if (d._action === 'update_sala' || d._action === 'update_sala_batch') return _doPost(e);
   } catch (err) {}
   return comTrava(() => _doPost(e));
 }
@@ -576,6 +592,7 @@ function _doPost(e) {
 
     // Aplica cor na linha recém inserida e trava formato da coluna Data como texto
     const row = sheet.getLastRow();
+    if (_indiceIds[sheet.getName()] && !_indiceIds[sheet.getName()].has(String(data.id))) _indiceIds[sheet.getName()].set(String(data.id), row);
     const nCols = sheet.getLastColumn();
     const idxData = COLUNAS.indexOf('Data');
     if (idxData >= 0) sheet.getRange(row, idxData + 1).setNumberFormat('@STRING@');
@@ -592,7 +609,7 @@ function _doPost(e) {
 
 function doGet(e) {
   const p = e && e.parameter ? e.parameter : {};
-  const escreve = p._action === 'update_sala' || p.action === 'saveDDP';
+  const escreve = p.action === 'saveDDP'; // v14: update_sala roda sem a trava
   return escreve ? comTrava(() => _doGet(e)) : _doGet(e);
 }
 
