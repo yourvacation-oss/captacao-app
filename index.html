@@ -1326,6 +1326,13 @@ function qqParamChave() {
   try { const k = localStorage.getItem(CHAVE_LEADS_KEY); return k ? 'k=' + encodeURIComponent(k) : ''; } catch (e) { return ''; }
 }
 
+// Mensagens das respostas de senha da planilha (v2.41)
+const MSG_SENHA = {
+  bloqueado: 'Muitas tentativas erradas. Espere 15 minutos.',
+  redefinir_pelo_ceo: 'Por segurança, a sua senha precisa ser redefinida pelo CEO. Fale com o Erick para receber uma senha provisória.',
+  senha_igual: 'A nova senha precisa ser diferente da atual.',
+};
+
 // ═══ CRACHÁ (v2.40) ═══
 // O login devolve um crachá assinado pela planilha; ele vai junto em toda leitura e gravação.
 // Renovado a cada abertura com internet (equipe_sessao). Quem já estava logado recebe o
@@ -1355,7 +1362,7 @@ async function qqObterCracha(pedirSenhaSeFalhar) {
       const r = await API.postJson({ _action: 'equipe_cracha', nome, hash, desde: localStorage.getItem('yv_login_em') || '' });
       if (r && r.status === 'ok' && r.cracha) { qqGuardarCracha(r.cracha); return; }
       // planilha antiga (sem crachá) ou sem resposta: não faz nada
-      if (!r || !['senha_nao_confere', 'refazer_login', 'bloqueado'].includes(r.code)) return;
+      if (!r || !['senha_nao_confere', 'senha_migrada', 'refazer_login', 'bloqueado'].includes(r.code)) return;
     } else if (!pedirSenhaSeFalhar) return;
     if (pedirSenhaSeFalhar && captador && captador.nome === nome) _pedirSenhaDeNovo(nome);
   } finally { _crachaEmAndamento = false; }
@@ -2091,16 +2098,18 @@ async function doLogin() {
       if (!inicial) { errEl.textContent = 'Digite também a senha inicial que você recebeu.'; return; }
       const at = await API.postJson({ _action: 'equipe_minha_senha', nome, senhaAtual: inicial, senhaNova: pw });
       if (!at) return offline();
-      if (at.status !== 'ok') { errEl.textContent = at.code === 'bloqueado' ? 'Muitas tentativas erradas. Espere 15 minutos.' : 'A senha inicial não confere. Peça ao seu líder para redefinir sua senha.'; return; }
+      if (at.status !== 'ok') {
+        errEl.textContent = MSG_SENHA[at.code] ? (at.code === 'senha_igual' ? 'A sua senha é igual à inicial. Entre com a senha inicial e crie uma senha nova.' : MSG_SENHA[at.code]) : 'A senha inicial não confere. Peça ao seu líder para redefinir sua senha.';
+        return;
+      }
       _equipeGuardar(at.equipe);
-      const lg = await API.postJson({ _action: 'equipe_login', nome, senha: pw });
-      if (lg && lg.status === 'ok') qqGuardarCracha(lg.cracha);
+      if (at.cracha) qqGuardarCracha(at.cracha);
       return _entrarAposLogin(nome, true);
     }
     const res = await API.postJson({ _action: 'equipe_login', nome, senha: pw });
     if (!res) return offline();
-    if (res.status === 'ok') { qqGuardarCracha(res.cracha); return _entrarAposLogin(nome, ehPessoalDaqui); }
-    if (res.code === 'bloqueado') { errEl.textContent = 'Muitas tentativas erradas. Espere 15 minutos.'; return; }
+    if (res.status === 'ok') { qqGuardarCracha(res.cracha); return _entrarAposLogin(nome, ehPessoalDaqui && !res.criarSenha); }
+    if (res.code === 'bloqueado' || res.code === 'redefinir_pelo_ceo') { errEl.textContent = MSG_SENHA[res.code]; return; }
     if (ehPessoalDaqui) {
       inicialWrap.classList.remove('hidden');
       errEl.textContent = 'Primeira vez com a planilha: digite também a senha inicial (ou provisória) que você recebeu do líder.';
@@ -2150,8 +2159,9 @@ async function confirmarCriarSenha() {
   if (!_senhaDoLogin) { errEl.textContent = 'Entre de novo com a senha provisória.'; return; }
   const r = await API.postJson({ _action: 'equipe_minha_senha', nome, senhaAtual: _senhaDoLogin, senhaNova: pw1 });
   if (!r) { errEl.textContent = 'Não consegui falar com a planilha. Tente de novo.'; return; }
-  if (r.status !== 'ok') { errEl.textContent = r.code === 'bloqueado' ? 'Muitas tentativas erradas. Espere 15 minutos.' : 'Não foi possível salvar a senha. Entre de novo com a senha provisória.'; return; }
+  if (r.status !== 'ok') { errEl.textContent = MSG_SENHA[r.code] || 'Não foi possível salvar a senha. Entre de novo com a senha provisória.'; return; }
   _equipeGuardar(r.equipe);
+  if (r.cracha) qqGuardarCracha(r.cracha);
   await setSenha(nome, pw1);
   _senhaDoLogin = null;
   document.getElementById('criarSenhaPanel').classList.add('hidden');
@@ -2256,8 +2266,9 @@ async function doChangePw() {
   if (!navigator.onLine) { errC.textContent = 'Sem internet. Conecte-se para trocar a senha.'; return; }
   const r = await API.postJson({ _action: 'equipe_minha_senha', nome: captador.nome, senhaAtual: old, senhaNova: nw });
   if (!r) { errC.textContent = 'Não consegui falar com a planilha. Tente de novo.'; return; }
-  if (r.status !== 'ok') { errC.textContent = r.code === 'bloqueado' ? 'Muitas tentativas erradas. Espere 15 minutos.' : 'Senha atual incorreta.'; return; }
+  if (r.status !== 'ok') { errC.textContent = MSG_SENHA[r.code] || 'Senha atual incorreta.'; return; }
   _equipeGuardar(r.equipe);
+  if (r.cracha) qqGuardarCracha(r.cracha);
   await setSenha(captador.nome, nw);
   closePwChange();
   alert('Senha alterada com sucesso!');
@@ -6947,6 +6958,7 @@ const EQ_ERROS = {
   ja_existe: 'Já existe alguém ativo com esse nome.', nome_invalido: 'Informe o nome completo.',
   cargo_invalido: 'Escolha o cargo.', operacao_obrigatoria: 'Escolha a operação.', senha_curta: 'A senha provisória precisa de pelo menos 4 caracteres.',
   nao_encontrado: 'Membro não encontrado na planilha.', nao_pode_si_mesmo: 'Você não pode desativar a si mesmo.',
+  redefinir_pelo_ceo: MSG_SENHA.redefinir_pelo_ceo, senha_igual: 'A senha provisória precisa ser diferente da senha atual da pessoa.',
   sem_aba: 'A planilha ainda não tem a aba Equipe. Peça ao Erick para rodar criarAbaEquipe.',
 };
 function pedirSenhaGestor(msg, pedirInicial) {
@@ -6993,8 +7005,8 @@ async function equipeAcao(payload) {
         const r = await pedirSenhaGestor('Primeira vez gerenciando pela planilha: digite sua senha atual e a senha inicial que você recebeu.', true);
         if (!r) return null;
         const at = await API.postJson({ _action: 'equipe_minha_senha', nome: captador.nome, senhaAtual: r.inicial, senhaNova: r.senha });
-        if (at && at.status === 'ok') { _gestorSenha = r.senha; _equipeGuardar(at.equipe); continue; }
-        alert(at && at.code === 'bloqueado' ? EQ_ERROS.bloqueado : 'A senha inicial não confere. Peça ao CEO para redefinir sua senha.');
+        if (at && at.status === 'ok') { _gestorSenha = r.senha; _equipeGuardar(at.equipe); if (at.cracha) qqGuardarCracha(at.cracha); continue; }
+        alert(at && MSG_SENHA[at.code] ? MSG_SENHA[at.code] : 'A senha inicial não confere. Peça ao CEO para redefinir sua senha.');
         return null;
       }
       continue;
@@ -7178,7 +7190,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.40';
+const APP_VERSAO = '2.41';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })

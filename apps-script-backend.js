@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════
 // Your Vacation — Qualificador de Captação
-// Google Apps Script Backend — v15
+// Google Apps Script Backend — v16
 // Cole este código em: Planilha > Extensões > Apps Script
 // Depois: Implantar > Gerenciar implantações > Editar > Nova versão > Implantar
 // ═══════════════════════════════════════════════════════
@@ -753,7 +753,8 @@ function desativarChaveLeads() {
 // Aba "Equipe": a lista de quem entra no app. O app lê por ?action=listarEquipe
 // e guarda uma cópia no celular. Nunca apagar linhas: desativar = Ativo NÃO.
 const EQUIPE_SHEET = 'Equipe';
-const EQUIPE_COLUNAS = ['Nome','Cargo','Operacao','Sala','SenhaHash','Ativo','ResetEm','CriadoPor','CriadoEm'];
+const EQUIPE_COLUNAS = ['Nome','Cargo','Operacao','Sala','SenhaHash','Ativo','ResetEm','CriadoPor','CriadoEm','SenhaOrigem'];
+// SenhaOrigem: 'migração' (senha inicial migrada do app; vazio conta como migração), 'pessoal' (criada pela pessoa) ou 'redefinida' (pelo líder/CEO)
 const APP_URL_INDEX = 'https://yourvacation-oss.github.io/captacao-app/index.html';
 
 function _isoTexto(v) {
@@ -821,7 +822,7 @@ function criarAbaEquipe() {
   const jaTem = new Set((lerEquipe() || []).map(m => m.nome.toLowerCase()));
   const agora = new Date().toISOString();
   const novos = membros.filter(m => !jaTem.has(m.nome.toLowerCase()))
-    .map(m => [m.nome, m.cargo, m.operacao || '', m.sala || '', m.senhaHash, 'SIM', '', 'migração (app)', agora]);
+    .map(m => [m.nome, m.cargo, m.operacao || '', m.sala || '', m.senhaHash, 'SIM', '', 'migração (app)', agora, 'migração']);
   if (novos.length) sheet.getRange(sheet.getLastRow() + 1, 1, novos.length, EQUIPE_COLUNAS.length).setValues(novos);
   Logger.log('Aba Equipe: ' + novos.length + ' membros acrescentados (' + membros.length + ' ativos no app).');
   return novos.length;
@@ -853,12 +854,27 @@ function _acharMembro(nome) {
       const r = linhas[i], ativo = String(r[ix.Ativo]).trim().toUpperCase();
       return { sheet, ix, linha: i + 2, nome: String(r[ix.Nome]).trim(), cargo: String(r[ix.Cargo]).trim(),
         operacao: String(r[ix.Operacao]).trim(), senhaHash: String(r[ix.SenhaHash]).trim(), ativo: ativo !== 'NÃO' && ativo !== 'NAO',
-        resetEm: ix.ResetEm >= 0 ? _isoTexto(r[ix.ResetEm]) : '' };
+        resetEm: ix.ResetEm >= 0 ? _isoTexto(r[ix.ResetEm]) : '',
+        origem: (ix.SenhaOrigem >= 0 ? String(r[ix.SenhaOrigem]).trim() : '') || 'migração' };
     }
   }
   return null;
 }
-function _gravar(m, col, valor) { if (m.ix[col] >= 0) m.sheet.getRange(m.linha, m.ix[col] + 1).setValue(valor); }
+function _gravar(m, col, valor) {
+  if (m.ix[col] < 0 && col === 'SenhaOrigem') m.ix[col] = _garantirColunaOrigem(m.sheet);
+  if (m.ix[col] >= 0) m.sheet.getRange(m.linha, m.ix[col] + 1).setValue(valor);
+}
+// Cria a coluna SenhaOrigem na aba Equipe se ainda não existir; devolve o índice (0-based)
+function _garantirColunaOrigem(sheet) {
+  const cab = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  let i = cab.indexOf('SenhaOrigem');
+  if (i < 0) { i = cab.filter(String).length; sheet.getRange(1, i + 1).setValue('SenhaOrigem'); }
+  return i;
+}
+const CARGOS_SEM_SENHA_MIGRADA = ['ceo', 'lider', 'sublider', 'supervisor_adm'];
+function _senhaMigrada(m) { return !m.origem || m.origem === 'migração'; }
+// Gestores com a senha inicial migrada não entram nem gerenciam: precisam de redefinição pelo CEO
+function _gestorComSenhaMigrada(m) { return _senhaMigrada(m) && CARGOS_SEM_SENHA_MIGRADA.indexOf(m.cargo) >= 0; }
 function _registrarHistorico(por, acao, alvo, detalhe) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let h = ss.getSheetByName('Equipe-Histórico');
@@ -883,6 +899,7 @@ function _autorizarGestor(data, operacaoAlvo, cargoAlvo) {
   const c = _conferirSenha(data.por, data.porSenha);
   if (!c.ok) return c;
   const g = c.membro;
+  if (_gestorComSenhaMigrada(g)) return { ok: false, code: 'redefinir_pelo_ceo' };
   if (CARGOS_GESTORES.indexOf(g.cargo) < 0) return { ok: false, code: 'sem_permissao' };
   if (g.cargo !== 'ceo') {
     if (!operacaoAlvo || operacaoAlvo !== g.operacao) return { ok: false, code: 'outra_operacao' };
@@ -910,12 +927,14 @@ function equipeAdicionar(data) {
     if (a.gestor.cargo !== 'ceo' && existente.operacao && existente.operacao !== a.gestor.operacao) return jsonResponse({ status: 'error', code: 'outra_operacao' });
     _gravar(existente, 'Cargo', cargo); _gravar(existente, 'Operacao', operacao); _gravar(existente, 'Sala', sala);
     _gravar(existente, 'SenhaHash', _sha256Hex(senha)); _gravar(existente, 'Ativo', 'SIM'); _gravar(existente, 'ResetEm', agora);
+    _gravar(existente, 'SenhaOrigem', 'redefinida');
     _registrarHistorico(a.gestor.nome, 'reativar', existente.nome, cargo + ' · ' + operacao + (sala ? ' · ' + sala : ''));
     return _respostaEquipe({ reativado: true });
   }
   const sheet = _abaEquipe();
+  _garantirColunaOrigem(sheet);
   sheet.getRange(sheet.getLastRow() + 1, 1, 1, EQUIPE_COLUNAS.length)
-    .setValues([[nome, cargo, operacao, sala, _sha256Hex(senha), 'SIM', '', a.gestor.nome, agora]]);
+    .setValues([[nome, cargo, operacao, sala, _sha256Hex(senha), 'SIM', '', a.gestor.nome, agora, 'redefinida']]);
   _registrarHistorico(a.gestor.nome, 'adicionar', nome, cargo + ' · ' + operacao + (sala ? ' · ' + sala : ''));
   return _respostaEquipe();
 }
@@ -926,8 +945,10 @@ function equipeRedefinirSenha(data) {
   if (!alvo) return jsonResponse({ status: 'error', code: 'nao_encontrado' });
   const a = _autorizarGestor(data, alvo.operacao, alvo.cargo);
   if (!a.ok) return jsonResponse({ status: 'error', code: a.code });
+  if (_sha256Hex(senha) === alvo.senhaHash) return jsonResponse({ status: 'error', code: 'senha_igual' });
   _gravar(alvo, 'SenhaHash', _sha256Hex(senha));
   _gravar(alvo, 'ResetEm', new Date().toISOString());
+  _gravar(alvo, 'SenhaOrigem', 'redefinida');
   _registrarHistorico(a.gestor.nome, 'redefinir senha', alvo.nome, '');
   return _respostaEquipe();
 }
@@ -947,15 +968,71 @@ function equipeMinhaSenha(data) {
   if (nova.length < 4) return jsonResponse({ status: 'error', code: 'senha_curta' });
   const c = _conferirSenha(data.nome, data.senhaAtual);
   if (!c.ok) return jsonResponse({ status: 'error', code: c.code });
+  if (_gestorComSenhaMigrada(c.membro)) return jsonResponse({ status: 'error', code: 'redefinir_pelo_ceo' });
+  if (_sha256Hex(nova) === c.membro.senhaHash) return jsonResponse({ status: 'error', code: 'senha_igual' });
   _gravar(c.membro, 'SenhaHash', _sha256Hex(nova));
+  _gravar(c.membro, 'SenhaOrigem', 'pessoal');
   _registrarHistorico(c.membro.nome, 'trocar a própria senha', c.membro.nome, '');
-  return _respostaEquipe();
+  return _respostaEquipe({ cracha: emitirCracha(_acharMembro(c.membro.nome)) });
+}
+
+// RODAR UMA VEZ (Apps Script > Executar) antes de usar a v16: cria a coluna SenhaOrigem e
+// preenche pelo histórico (última troca da própria senha = pessoal; redefinição/cadastro = redefinida;
+// o resto fica migração). Mostra no registro quem ainda está com a senha inicial migrada.
+function prepararOrigemDasSenhas() {
+  const sheet = _abaEquipe();
+  if (!sheet) throw new Error('Aba Equipe não encontrada');
+  const iO = _garantirColunaOrigem(sheet);
+  const cab = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const iN = cab.indexOf('Nome'), iC = cab.indexOf('Cargo'), n = sheet.getLastRow() - 1;
+  if (n < 1) return;
+  const ultimo = {};
+  const h = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Equipe-Histórico');
+  if (h && h.getLastRow() > 1) {
+    h.getRange(2, 1, h.getLastRow() - 1, 4).getValues().forEach(r => {
+      const acao = String(r[2]), alvo = _chaveNome(r[3]);
+      if (acao === 'trocar a própria senha') ultimo[alvo] = 'pessoal';
+      else if (/^(redefinir senha|adicionar|reativar)/.test(acao)) ultimo[alvo] = 'redefinida';
+    });
+  }
+  const linhas = sheet.getRange(2, 1, n, sheet.getLastColumn()).getValues();
+  const origens = linhas.map(r => [String(r[iO] || '').trim() || ultimo[_chaveNome(r[iN])] || 'migração']);
+  sheet.getRange(2, iO + 1, n, 1).setValues(origens);
+  const conta = {}; origens.forEach(o => { conta[o[0]] = (conta[o[0]] || 0) + 1; });
+  const gestores = linhas.map((r, i) => ({ nome: r[iN], cargo: r[iC], o: origens[i][0] })).filter(x => x.o === 'migração' && CARGOS_SEM_SENHA_MIGRADA.indexOf(String(x.cargo)) >= 0);
+  Logger.log('SenhaOrigem: ' + JSON.stringify(conta));
+  Logger.log('Gestores ainda com a senha inicial migrada (precisam de redefinição): ' + (gestores.map(g => g.nome + ' (' + g.cargo + ')').join(', ') || 'nenhum'));
+}
+// RODAR NO EDITOR (só quem é dono da planilha): dá senha provisória nova para cada gestor
+// (CEO, líder, sublíder, supervisão) que ainda está com a senha inicial migrada.
+// As senhas aparecem só no registro desta execução: passe para cada um pessoalmente.
+function redefinirGestoresComSenhaMigrada() {
+  const sheet = _abaEquipe();
+  if (!sheet) throw new Error('Aba Equipe não encontrada');
+  _garantirColunaOrigem(sheet);
+  const nomes = (lerEquipe() || []).filter(x => x.ativo && CARGOS_SEM_SENHA_MIGRADA.indexOf(x.cargo) >= 0).map(x => x.nome);
+  const agora = new Date().toISOString(); let feitos = 0;
+  nomes.forEach(nome => {
+    const m = _acharMembro(nome);
+    if (!m || !_senhaMigrada(m)) return;
+    const num = parseInt(Utilities.getUuid().replace(/-/g, '').slice(0, 10), 16) % 1000000;
+    const prov = String(num).padStart(6, '0');
+    _gravar(m, 'SenhaHash', _sha256Hex(prov)); _gravar(m, 'ResetEm', agora); _gravar(m, 'SenhaOrigem', 'redefinida');
+    _registrarHistorico('editor do Apps Script', 'redefinir senha', m.nome, 'gestor com senha migrada');
+    Logger.log(m.nome + ' (' + m.cargo + '): senha provisória ' + prov);
+    feitos++;
+  });
+  Logger.log(feitos + ' gestor(es) com senha provisória nova. No 1º acesso o app pede para criar a senha pessoal.');
 }
 
 // Entrada no app: responde só ok ou erro (mesmo limite de tentativas)
 function equipeLogin(data) {
   const c = _conferirSenha(data.nome, data.senha);
-  return jsonResponse(c.ok ? { status: 'ok', cracha: emitirCracha(c.membro) } : { status: 'error', code: c.code });
+  if (!c.ok) return jsonResponse({ status: 'error', code: c.code });
+  // Senha inicial migrada: gestor não entra (redefinição pelo CEO); os demais só criam a senha pessoal (sem crachá)
+  if (_gestorComSenhaMigrada(c.membro)) return jsonResponse({ status: 'error', code: 'redefinir_pelo_ceo' });
+  if (_senhaMigrada(c.membro)) return jsonResponse({ status: 'ok', criarSenha: true });
+  return jsonResponse({ status: 'ok', cracha: emitirCracha(c.membro) });
 }
 // Celular já logado: troca a senha pessoal guardada nele (em código) por um crachá, sem digitar de novo.
 // Mesmo limite de tentativas do login.
@@ -969,6 +1046,8 @@ function equipeCrachaPorHash(data) {
     cache.put(k, String(erros + 1), 900);
     return jsonResponse({ status: 'error', code: 'senha_nao_confere' });
   }
+  // Só senha criada pela pessoa ou redefinida depois da migração (a inicial migrada não vale aqui)
+  if (_senhaMigrada(m)) return jsonResponse({ status: 'error', code: 'senha_migrada' });
   if (m.resetEm && String(data.desde || '') < m.resetEm) return jsonResponse({ status: 'error', code: 'refazer_login' });
   cache.remove(k);
   return jsonResponse({ status: 'ok', cracha: emitirCracha(m) });
