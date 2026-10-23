@@ -43,6 +43,7 @@ São Pedro, Caldas Novas, Atibaia, Ribeirão Preto.
 ## Cuidados
 - A equipe é gerenciada pela aba Equipe do app (grava na planilha). CONFIG.captadores é só reserva de nomes, sem senhas: nunca colocar senha, hash ou senha padrão no index.html nem em comentários.
 - Atibaia com operacao null em registros antigos é proposital.
+- Hotéis de Caldas Novas (DDP e regras): Alta Vista, Atrium, Marina e Toulon, todos com calcAltaVista, idade 28–65 e pergunta do apartamento. Ao incluir um hotel novo de Caldas, atualizar DDP_CONFIG.operacoes, DDP_CONFIG.salaParaOperacao, CONFIG.salasDdpAuto, CONFIG.salasCaldas, calcResult(), _cnSala, _isCN e a condição da pergunta 'apto'.
 - Sala digitada "São Pedro" (qualquer acento/maiúscula) é gravada como SPTR: salaDigitadaCanon() no app e normalizarSalaDigitada() no backend. "São Pedro Resort" é outro caso (vai por captador em normalizarSala).
 - Hotel de Caldas digitado em "Outra sala" (lista HOTEIS_CALDAS, tolera 1 letra errada) vira sala Externo (externo-cn, regra de Caldas); o nome digitado vai em pontoCaptacao → coluna PontoCaptacao. Alta Vista/Atrium/Marina/Toulon digitados vão para a própria sala. Função salaDoCampoLivre().
 - Backend retorna { status: 'ok' }: checar res.status === 'ok', não res.ok.

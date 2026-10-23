@@ -1491,7 +1491,7 @@ const CONFIG = {
   // Salas onde aparece apenas 🤝 venda (sem chips de tipo)
   salasDdpVenda: ['Atibaia', 'Thermas SP'],
   // Pontos de Caldas Novas (captadores escolhem ao iniciar)
-  salasCaldas: ['Alta Vista', 'Atrium', 'Marina', 'Externo'],
+  salasCaldas: ['Alta Vista', 'Atrium', 'Marina', 'Toulon', 'Externo'],
   // Operações de São Pedro (captadores escolhem a sala ao iniciar)
   salasSaoPedro: ['Thermas SP', 'SPTR', 'Externo'],
   // Pontos de Atibaia (captadores escolhem ao iniciar)
@@ -2438,13 +2438,13 @@ const QS = [
     id:'apto', type:'text',
     condicional: () => {
       // Só faz sentido perguntar o apartamento nos hotéis de Caldas
-      // (Atrium, Alta Vista, Marina) onde o cliente vai para um quarto.
+      // (Atrium, Alta Vista, Marina, Toulon) onde o cliente vai para um quarto.
       // NÃO perguntar em SPTR, Thermas SP, Externo, Atibaia (pontos onde
       // o cliente não necessariamente entra num apartamento).
       // Aparece cedo no fluxo (logo após cidade) para o captador não esquecer
       // de anotar — o cliente provavelmente já sabe o número do apto.
       const s = (salaAtual && salaAtual.nome) ? salaAtual.nome.toUpperCase() : '';
-      return s === 'ATRIUM' || s === 'ALTA VISTA' || s === 'MARINA';
+      return s === 'ATRIUM' || s === 'ALTA VISTA' || s === 'MARINA' || s === 'TOULON';
     },
     text:'Qual o número do apartamento?',
     placeholder:'Ex: 1204',
@@ -2592,6 +2592,7 @@ function calcResult() {
   if (salaId === 'alta-vista') return calcAltaVista();
   if (salaId === 'atrium')     return calcAltaVista();
   if (salaId === 'marina')     return calcAltaVista();
+  if (salaId === 'toulon')     return calcAltaVista();
   if (salaId === 'externo-cn') return calcAltaVista();
   if (salaId === 'sptr')       return calcSaoPedro();
   if (salaId === 'thermas-sp') return calcSaoPedro();
@@ -3307,9 +3308,9 @@ function startQuiz() {
 // Tela específica de seleção de ponto para captadores de Caldas Novas
 function renderSalaCnScreen() {
   const chips = document.getElementById('salaChips');
-  const salas = CONFIG.salasCaldas; // ['Alta Vista', 'Atrium', 'Marina', 'Externo']
-  const icons = { 'Alta Vista': '🏔️', 'Atrium': '🏩', 'Marina': '⛵', 'Externo': '🚶' };
-  const descs = { 'Alta Vista': 'Hotel Alta Vista Resort', 'Atrium': 'Hotel Atrium Thermas Resort', 'Marina': 'Marina Thermas Resort', 'Externo': 'Captação de rua — fora dos hotéis' };
+  const salas = CONFIG.salasCaldas; // ['Alta Vista', 'Atrium', 'Marina', 'Toulon', 'Externo']
+  const icons = { 'Alta Vista': '🏔️', 'Atrium': '🏩', 'Marina': '⛵', 'Toulon': '🏨', 'Externo': '🚶' };
+  const descs = { 'Alta Vista': 'Hotel Alta Vista Resort', 'Atrium': 'Hotel Atrium Thermas Resort', 'Marina': 'Marina Thermas Resort', 'Toulon': 'Hotel Toulon', 'Externo': 'Captação de rua — fora dos hotéis' };
   chips.innerHTML = salas.map(nome => {
     const cfg = CONFIG.salas.find(s => s.nome === nome && s.operacao === 'Caldas Novas');
     return `<div class="sala-chip" data-id="${cfg ? cfg.id : nome}" onclick="pickSala(this,'${cfg ? cfg.id : nome}','${nome}')">
@@ -3514,7 +3515,7 @@ function renderStep() {
     wI.classList.add('hidden'); wCarro.classList.add('hidden');
     wC.innerHTML = '';
     // Para CN (28–65), substituir label/icon da opção menor30 nas perguntas de idade
-    const _cnSala = salaAtual && ['alta-vista','atrium','marina','externo-cn'].includes(salaAtual.id);
+    const _cnSala = salaAtual && ['alta-vista','atrium','marina','toulon','externo-cn'].includes(salaAtual.id);
     const optsDisplay = (q.id === 'idadeMarido' || q.id === 'idadeConjuge') && _cnSala
       ? q.opts.map(o => o.value === 'menor30' ? { ...o, icon:'✅', label:'28 a 29 anos' } : o)
       : q.opts;
@@ -4153,7 +4154,7 @@ function renderHistList() {
       // Número do apartamento (só para leads com o valor salvo)
       if (a.apartamento)
         chips.push({ t: '🏨 Apto ' + a.apartamento, c:'neu' });
-      const _isCN = ['Alta Vista','Atrium','Marina','Externo'].includes(h.sala);
+      const _isCN = ['Alta Vista','Atrium','Marina','Toulon','Externo'].includes(h.sala);
       const _idadeOkChip = (v) => { const n = parseInt(v,10); return !isNaN(n) && n >= (_isCN?28:30) && n <= 65; };
       if (a.idadeMarido)
         chips.push({ t: 'Tit. ' + a.idadeMarido + ' anos', c: _idadeOkChip(a.idadeMarido) ? 'ok' : 'no' });
@@ -5118,7 +5119,7 @@ function todosOsMembros() { return equipeAtual(); }
 // ══════════════════════════════════════════════════════
 const DDP_CONFIG = {
   operacoes: {
-    'Caldas Novas': ['Alta Vista', 'Atrium', 'Marina'],
+    'Caldas Novas': ['Alta Vista', 'Atrium', 'Marina', 'Toulon'],
     'São Pedro':    ['SPTR', 'Thermas SP (Parque)'],
   },
   // Hotels que usam o modo "parque" — visitantes manuais + casais auto (sem CI, sem tipos)
@@ -5131,6 +5132,7 @@ const DDP_CONFIG = {
     'Alta Vista': 'Caldas Novas',
     'Atrium':     'Caldas Novas',
     'Marina':     'Caldas Novas',
+    'Toulon':     'Caldas Novas',
     'SPTR':       'São Pedro',
     'Thermas SP': 'São Pedro',
   },
@@ -7116,7 +7118,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.38';
+const APP_VERSAO = '2.39';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
