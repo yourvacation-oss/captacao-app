@@ -1326,6 +1326,49 @@ function qqParamChave() {
   try { const k = localStorage.getItem(CHAVE_LEADS_KEY); return k ? 'k=' + encodeURIComponent(k) : ''; } catch (e) { return ''; }
 }
 
+// ═══ CRACHÁ (v2.40) ═══
+// O login devolve um crachá assinado pela planilha; ele vai junto em toda leitura e gravação.
+// Renovado a cada abertura com internet (equipe_sessao). Quem já estava logado recebe o
+// crachá sem digitar a senha, se a senha pessoal deste celular já estiver na planilha.
+const CRACHA_KEY = 'yv_cracha';
+function qqCracha() { try { return localStorage.getItem(CRACHA_KEY) || ''; } catch (e) { return ''; } }
+function qqGuardarCracha(c) { if (!c) return; try { localStorage.setItem(CRACHA_KEY, c); } catch (e) {} setTimeout(() => { try { offlineFlush(); ddpOfflineFlush(); } catch (e) {} }, 300); }
+function qqApagarCracha() { try { localStorage.removeItem(CRACHA_KEY); } catch (e) {} }
+function qqParamCracha() { const c = qqCracha(); return c ? 'cracha=' + encodeURIComponent(c) : ''; }
+function _comCracha(obj) { const c = qqCracha(); return c ? { ...obj, cracha: c } : obj; }
+function _urlComCracha(url) { const c = qqParamCracha(); return c ? url + (url.includes('?') ? '&' : '?') + c : url; }
+// A planilha recusou o crachá (vencido, sem crachá…): tenta outro e, se não der, pede a senha
+let _crachaEmAndamento = false;
+function _verCodigoCracha(json) { if (json && (json.code === 'sem_cracha' || json.code === 'cracha_invalido')) qqCrachaRecusado(); }
+function qqCrachaRecusado() {
+  if (_crachaEmAndamento || !captador) return;
+  qqApagarCracha();
+  qqObterCracha(true);
+}
+async function qqObterCracha(pedirSenhaSeFalhar) {
+  if (_crachaEmAndamento || !captador || !navigator.onLine || !API.ok()) return;
+  _crachaEmAndamento = true;
+  const nome = captador.nome;
+  try {
+    const hash = localStorage.getItem('yv_pw_' + nome);
+    if (hash) {
+      const r = await API.postJson({ _action: 'equipe_cracha', nome, hash, desde: localStorage.getItem('yv_login_em') || '' });
+      if (r && r.status === 'ok' && r.cracha) { qqGuardarCracha(r.cracha); return; }
+      // planilha antiga (sem crachá) ou sem resposta: não faz nada
+      if (!r || !['senha_nao_confere', 'refazer_login', 'bloqueado'].includes(r.code)) return;
+    } else if (!pedirSenhaSeFalhar) return;
+    if (pedirSenhaSeFalhar && captador && captador.nome === nome) _pedirSenhaDeNovo(nome);
+  } finally { _crachaEmAndamento = false; }
+}
+function _pedirSenhaDeNovo(nome) {
+  document.getElementById('screenLogin').classList.remove('hidden');
+  ['criarSenhaPanel','pwChangePanel','forgotPanel'].forEach(id => document.getElementById(id).classList.add('hidden'));
+  if (_membro(nome)) {
+    loginPickNome(nome);
+    document.getElementById('pwError').textContent = 'Para continuar enviando e vendo as pesquisas, entre de novo com a sua senha.';
+  } else voltarParaBusca();
+}
+
 // ═══ MIGRAÇÃO DE ENDEREÇO (v2.27) ═══
 // A ponte do endereço antigo envia, dentro do próprio link (depois do #, que não vai
 // para nenhum servidor), os dados que só existiam no celular: login salvo, senha
@@ -1544,7 +1587,7 @@ const API = {
       const r = await fetch(CONFIG.webhookUrl, {
         method: 'POST',
         headers: {'Content-Type':'text/plain'},
-        body: JSON.stringify(lead)
+        body: JSON.stringify(_comCracha(lead))
       });
       if (!r.ok) {
         if (!opts.silent) {
@@ -1557,6 +1600,7 @@ const API = {
         return false;
       }
       const json = await r.json().catch(() => null);
+      _verCodigoCracha(json);
       return json && (json.status === 'ok' || json.status === 'duplicate');
     } catch(e) {
       if (!opts.silent) console.warn('API.post fetch error:', e.message);
@@ -1567,9 +1611,11 @@ const API = {
   postJson: async (payload) => {
     if (!API.ok()) return null;
     try {
-      const r = await fetch(CONFIG.webhookUrl, { method: 'POST', headers: {'Content-Type':'text/plain'}, body: JSON.stringify(payload) });
+      const r = await fetch(CONFIG.webhookUrl, { method: 'POST', headers: {'Content-Type':'text/plain'}, body: JSON.stringify(_comCracha(payload)) });
       if (!r.ok) return null;
-      return await r.json().catch(() => null);
+      const json = await r.json().catch(() => null);
+      _verCodigoCracha(json);
+      return json;
     } catch(e) { return null; }
   },
   getLeads: async (dateISO, dateFrom, dateTo) => {
@@ -1581,6 +1627,7 @@ const API = {
     if (!API.ok()) return null;
     try {
       const p = new URLSearchParams(qqParamChave());
+      if (qqCracha()) p.set('cracha', qqCracha());
       if (dateISO)  p.set('dateISO',  dateISO);
       if (dateFrom) p.set('dateFrom', dateFrom);
       if (dateTo)   p.set('dateTo',   dateTo);
@@ -1589,6 +1636,7 @@ const API = {
       const r = await fetch(url);
       if (!r.ok) return null;
       const json = await r.json();
+      _verCodigoCracha(json);
       return Array.isArray(json) ? json : (json.leads || null);
     } catch(e) { return null; }
   }
@@ -1788,9 +1836,16 @@ function _membro(nome) { return equipeAtual().find(m => m.nome === nome) || null
 function equipeVerificarSessao() {
   if (!captador || !navigator.onLine || !API.ok()) return Promise.resolve();
   const nome = captador.nome;
+  const temCracha = !!qqCracha();
   return API.postJson({ _action: 'equipe_sessao', nome, desde: localStorage.getItem('yv_login_em') || '' })
     .then(r => {
+      if (r && r.status === 'ok') {
+        if (r.cracha) qqGuardarCracha(r.cracha);       // crachá renovado
+        else if (!temCracha) qqObterCracha(true);       // ainda sem crachá: pega pela senha deste celular
+        return;
+      }
       if (!r || r.code !== 'refazer_login' || !captador || captador.nome !== nome) return;
+      qqApagarCracha();
       localStorage.removeItem('yv_pw_' + nome); localStorage.removeItem('yv_pw_em_' + nome);
       sessionStorage.removeItem('yv_captador');
       try { localStorage.removeItem('yv_captador'); } catch (e) {}
@@ -2038,11 +2093,13 @@ async function doLogin() {
       if (!at) return offline();
       if (at.status !== 'ok') { errEl.textContent = at.code === 'bloqueado' ? 'Muitas tentativas erradas. Espere 15 minutos.' : 'A senha inicial não confere. Peça ao seu líder para redefinir sua senha.'; return; }
       _equipeGuardar(at.equipe);
+      const lg = await API.postJson({ _action: 'equipe_login', nome, senha: pw });
+      if (lg && lg.status === 'ok') qqGuardarCracha(lg.cracha);
       return _entrarAposLogin(nome, true);
     }
     const res = await API.postJson({ _action: 'equipe_login', nome, senha: pw });
     if (!res) return offline();
-    if (res.status === 'ok') return _entrarAposLogin(nome, ehPessoalDaqui);
+    if (res.status === 'ok') { qqGuardarCracha(res.cracha); return _entrarAposLogin(nome, ehPessoalDaqui); }
     if (res.code === 'bloqueado') { errEl.textContent = 'Muitas tentativas erradas. Espere 15 minutos.'; return; }
     if (ehPessoalDaqui) {
       inicialWrap.classList.remove('hidden');
@@ -2127,6 +2184,7 @@ function afterLogin() {
 }
 
 function trocarCaptador() {
+  qqApagarCracha();
   sessionStorage.removeItem('yv_captador');
   sessionStorage.removeItem('yv_sala_atual');
   try { localStorage.removeItem('yv_captador'); } catch(e) {}
@@ -4687,7 +4745,7 @@ function showCdp() {
     const _cdpDateTo   = (cdpFiltro.periodo === 'livre' && cdpFiltro.ate) ? cdpFiltro.ate : todayISO();
     Promise.all([
       API.getLeads(null, _cdpDateFrom, _cdpDateTo),
-      fetch(CONFIG.webhookUrl + '?_type=pi' + (qqParamChave() ? '&' + qqParamChave() : '')).then(r=>r.json()).catch(()=>null)
+      fetch(_urlComCracha(CONFIG.webhookUrl + '?_type=pi' + (qqParamChave() ? '&' + qqParamChave() : ''))).then(r=>r.json()).then(j => { _verCodigoCracha(j); return j; }).catch(()=>null)
     ]).then(([remoto, piRemoto]) => {
       mergeRemoto(remoto, _cdpDateFrom);
       mergePIsRemoto(piRemoto);
@@ -5208,9 +5266,10 @@ function ddpSheetsLoad(hotel) {
   const hotelEnc = encodeURIComponent(hotel);
   _ddpFetchPendente++;
   _ddpAtualizarBotaoFiltro();
-  fetch(DDP_CONFIG.sheetsUrl + '?action=getDDP&hotel=' + hotelEnc)
+  fetch(_urlComCracha(DDP_CONFIG.sheetsUrl + '?action=getDDP&hotel=' + hotelEnc))
     .then(r => r.json())
     .then(res => {
+      _verCodigoCracha(res);
       if (res.status === 'ok' && Array.isArray(res.rows)) {
         // Normaliza dateISO — Sheets pode retornar objetos Date ou strings truncadas "GM..."
         const _MON={Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
@@ -5314,9 +5373,10 @@ async function _ddpPostSheets(entry) {
       vendConv:   entry.vendConv   || 0,
       visitantes: entry.visitantes || 0,
     });
-    const r = await fetch(DDP_CONFIG.sheetsUrl + '?' + params.toString());
+    const r = await fetch(_urlComCracha(DDP_CONFIG.sheetsUrl + '?' + params.toString()));
     if (!r.ok) return false;
     const json = await r.json().catch(() => null);
+    _verCodigoCracha(json);
     return json && (json.status === 'ok' || json.status === 'duplicate');
   } catch(e) { return false; }
 }
@@ -7118,7 +7178,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.39';
+const APP_VERSAO = '2.40';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })

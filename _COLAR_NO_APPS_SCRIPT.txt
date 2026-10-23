@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════
 // Your Vacation — Qualificador de Captação
-// Google Apps Script Backend — v14
+// Google Apps Script Backend — v15
 // Cole este código em: Planilha > Extensões > Apps Script
 // Depois: Implantar > Gerenciar implantações > Editar > Nova versão > Implantar
 // ═══════════════════════════════════════════════════════
@@ -378,21 +378,118 @@ function abasDePesquisas() {
   return Array.from(new Set(Object.values(SALA_SHEETS))).map(n => ss.getSheetByName(n)).filter(Boolean);
 }
 
-function doPost(e) {
-  // Entrada e conferência de sessão não gravam na planilha: não esperam a trava
+// ── CRACHÁ (v15) ──
+// O login devolve um crachá assinado aqui (HMAC-SHA256 com segredo nas Propriedades do
+// script: CRACHA_SEGREDO). Leituras e gravações exigem o crachá; cada um só lê e grava a
+// própria operação (CEO e supervisor_adm leem tudo; a pessoa sempre lê/grava o que é dela).
+const CRACHA_VALIDADE_MS = 30 * 24 * 60 * 60 * 1000; // renovado a cada abertura do app
+// Operação de cada sala/hotel ("Externo" existe em Caldas e em São Pedro: vai pela operação do captador)
+const SALA_OPERACAO = {
+  'Alta Vista': 'Caldas Novas', 'Atrium': 'Caldas Novas', 'Marina': 'Caldas Novas', 'Toulon': 'Caldas Novas', 'Externo CN': 'Caldas Novas',
+  'Thermas SP': 'São Pedro', 'SPTR': 'São Pedro', 'São Pedro': 'São Pedro', 'São Pedro Resort': 'São Pedro', 'Externo SP': 'São Pedro', 'Thermas SP (Parque)': 'São Pedro',
+  'Atibaia': 'Atibaia', 'Porta da sala': 'Atibaia', 'Vest Casa': 'Atibaia', 'Entrada Outlet': 'Atibaia', 'Corredor Outlet': 'Atibaia',
+  'Frente da showroom': 'Ribeirão Preto', 'Praça de alimentação': 'Ribeirão Preto', 'Estacionamento': 'Ribeirão Preto', 'Carrossel': 'Ribeirão Preto', 'Parquinho': 'Ribeirão Preto',
+};
+function _segredoCracha() {
+  const props = PropertiesService.getScriptProperties();
+  let seg = props.getProperty('CRACHA_SEGREDO');
+  if (!seg) { seg = Utilities.getUuid() + Utilities.getUuid(); props.setProperty('CRACHA_SEGREDO', seg); }
+  return seg;
+}
+function _b64url(bytesOuTexto) { return Utilities.base64EncodeWebSafe(bytesOuTexto).replace(/=+$/, ''); }
+function _assinarCracha(corpo) { return _b64url(Utilities.computeHmacSha256Signature(corpo, _segredoCracha())); }
+function emitirCracha(m) {
+  const agora = Date.now();
+  const corpo = _b64url(JSON.stringify({ n: m.nome, c: m.cargo, o: m.operacao || '', iat: agora, exp: agora + CRACHA_VALIDADE_MS }));
+  return corpo + '.' + _assinarCracha(corpo);
+}
+function _iguais(a, b) { // comparação de tempo constante
+  if (a.length !== b.length) return false;
+  let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
+// Devolve a pessoa (dados atuais da aba Equipe) ou null
+function lerCracha(cracha) {
+  const t = String(cracha || '');
+  const partes = t.split('.');
+  if (partes.length !== 2 || !partes[0] || !partes[1]) return null;
+  if (!_iguais(_assinarCracha(partes[0]), partes[1])) return null;
+  let p;
   try {
-    const d = JSON.parse(e.postData.contents);
-    if (d._action === 'equipe_login')  return equipeLogin(d);
-    if (d._action === 'equipe_sessao') return equipeSessao(d);
-    // v14: marcações de sala (só atualizam células de linhas que já existem) rodam sem a trava
-    if (d._action === 'update_sala' || d._action === 'update_sala_batch') return _doPost(e);
-  } catch (err) {}
-  return comTrava(() => _doPost(e));
+    const pad = partes[0] + '==='.slice((partes[0].length + 3) % 4);
+    p = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(pad)).getDataAsString());
+  } catch (e) { return null; }
+  if (!p || !p.n || !p.exp || Date.now() > p.exp) return null;
+  const m = _acharMembro(p.n);
+  if (!m || !m.ativo) return null;
+  if (m.resetEm && m.resetEm > new Date(p.iat).toISOString()) return null; // senha redefinida depois
+  return { nome: m.nome, cargo: m.cargo, operacao: m.operacao || '' };
+}
+// Emergência: rodar desligarCracha() faz o backend aceitar pedidos sem crachá (como antes)
+function desligarCracha() { PropertiesService.getScriptProperties().setProperty('CRACHA_DESLIGADO', 'SIM'); Logger.log('Crachá DESLIGADO: pedidos sem crachá são aceitos.'); }
+function ligarCracha()    { PropertiesService.getScriptProperties().deleteProperty('CRACHA_DESLIGADO'); Logger.log('Crachá LIGADO: leituras e gravações exigem crachá.'); }
+function _autenticar(cracha) {
+  if (cracha) {
+    const u = lerCracha(cracha);
+    return u ? { ok: true, user: u } : { ok: false, code: 'cracha_invalido' };
+  }
+  if (PropertiesService.getScriptProperties().getProperty('CRACHA_DESLIGADO') === 'SIM')
+    return { ok: true, user: { nome: '', cargo: 'ceo', operacao: '' } };
+  return { ok: false, code: 'sem_cracha' };
+}
+// Operação de uma pesquisa: pela sala; se não der (ex.: "Externo", sala digitada), pela do captador
+const _opCaptadorCache = {};
+function _opDoCaptador(nome) {
+  const k = _chaveNome(nome);
+  if (!(k in _opCaptadorCache)) { const m = nome ? _acharMembro(nome) : null; _opCaptadorCache[k] = m ? (m.operacao || '') : ''; }
+  return _opCaptadorCache[k];
+}
+function _opDaPesquisa(sala, captador) { return SALA_OPERACAO[String(sala || '').trim()] || _opDoCaptador(captador); }
+function _podeLer(u, op, captador) {
+  if (u.cargo === 'ceo' || u.cargo === 'supervisor_adm') return true;
+  if (captador && _chaveNome(captador) === _chaveNome(u.nome)) return true;
+  return !!op && op === u.operacao;
+}
+function _podeGravar(u, op, captador) {
+  if (u.cargo === 'ceo') return true;
+  if (captador && _chaveNome(captador) === _chaveNome(u.nome)) return true;
+  return !!op && op === u.operacao;
+}
+// Sala e Captador de uma linha (colunas lidas uma vez por aba por execução)
+const _colunasCache = {};
+function _salaECaptador(sheet, row) {
+  const nome = sheet.getName();
+  if (!_colunasCache[nome]) {
+    const cab = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const iS = cab.indexOf('Sala'), iC = cab.indexOf('Captador'), n = sheet.getLastRow();
+    const col = i => (i >= 0 && n >= 2) ? sheet.getRange(2, i + 1, n - 1, 1).getValues().map(r => r[0]) : [];
+    _colunasCache[nome] = { sala: col(iS), captador: col(iC) };
+  }
+  const c = _colunasCache[nome];
+  return { sala: c.sala[row - 2] || '', captador: c.captador[row - 2] || '' };
+}
+function _podeMarcar(u, sheet, row) { const x = _salaECaptador(sheet, row); return _podeGravar(u, _opDaPesquisa(x.sala, x.captador), x.captador); }
+
+function doPost(e) {
+  let d = null;
+  try { d = JSON.parse(e.postData.contents); } catch (err) { return jsonResponse({ status: 'error', message: 'json' }); }
+  // Entrada e sessão: não exigem crachá e não esperam a trava
+  if (d._action === 'equipe_login')  return equipeLogin(d);
+  if (d._action === 'equipe_sessao') return equipeSessao(d);
+  if (d._action === 'equipe_cracha') return equipeCrachaPorHash(d);
+  // Gestão da equipe: conferida pela senha de quem gerencia (por + porSenha)
+  if (/^equipe_/.test(String(d._action || ''))) return comTrava(() => _doPost(e, null));
+  const a = _autenticar(d.cracha);
+  if (!a.ok) return jsonResponse({ status: 'error', code: a.code });
+  // v14: marcações de sala (só atualizam células de linhas que já existem) rodam sem a trava
+  if (d._action === 'update_sala' || d._action === 'update_sala_batch') return _doPost(e, a.user);
+  return comTrava(() => _doPost(e, a.user));
 }
 
-function _doPost(e) {
+function _doPost(e, user) {
   try {
     const data = JSON.parse(e.postData.contents);
+    delete data.cracha;
     if (data.sala !== undefined && data.sala !== null) data.sala = normalizarSalaDigitada(data.sala);
 
     // saveDDP: salva/atualiza registro de DDP na aba DDP do Sheets
@@ -401,6 +498,7 @@ function _doPost(e) {
       if (dateISO.startsWith('DDP_')) dateISO = dateISO.slice(4);
       const hotel = data.hotel || '';
       if (!hotel || !dateISO) return jsonResponse({ status: 'error', message: 'hotel e dateISO obrigatórios' });
+      if (!_podeGravar(user, SALA_OPERACAO[hotel] || '', null)) return jsonResponse({ status: 'error', code: 'proibido' });
       const entry = {
         hotel, dateISO,
         ciPool:     Number(data.ciPool)     || 0,
@@ -422,7 +520,7 @@ function _doPost(e) {
     // getDDP via POST (alternativa ao GET)
     if (data.action === 'getDDP') {
       const hotel = data.hotel || '';
-      const store = getDDPStore();
+      const store = getDDPStore().filter(r => _podeLer(user, SALA_OPERACAO[r.hotel] || '', null));
       const rows = hotel ? store.filter(r => r.hotel === hotel) : store;
       return jsonResponse({ status: 'ok', rows });
     }
@@ -445,6 +543,7 @@ function _doPost(e) {
       for (const sheet of sheetsAlvo) {
         const row = findRowById(sheet, data.id);
         if (row > 0) {
+          if (!_podeMarcar(user, sheet, row)) return jsonResponse({ status: 'error', code: 'proibido', id: data.id });
           const cabecalho = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
           const set = (col, val) => {
             const i = cabecalho.indexOf(col);
@@ -467,13 +566,15 @@ function _doPost(e) {
       // Cache de cabeçalhos por sheet (evita releitura)
       const cabecalhoCache = {};
       sheetsAlvo.forEach(s => { cabecalhoCache[s.getName()] = s.getRange(1, 1, 1, s.getLastColumn()).getValues()[0]; });
-      const results = { ok: 0, not_found: [], errors: 0 };
+      const results = { ok: 0, not_found: [], proibidos: [], errors: 0 };
       data.updates.forEach(u => {
         try {
           let found = false;
           for (const sheet of sheetsAlvo) {
             const row = findRowById(sheet, u.id);
             if (row > 0) {
+              found = true;
+              if (!_podeMarcar(user, sheet, row)) { results.proibidos.push(String(u.id)); break; }
               const cabecalho = cabecalhoCache[sheet.getName()];
               const set = (col, val) => {
                 const i = cabecalho.indexOf(col);
@@ -484,7 +585,6 @@ function _doPost(e) {
               set('Venda',    u.venda    ? 'SIM' : '');
               if (u.sala !== undefined) set('Sala', normalizarSalaDigitada(u.sala));
               results.ok++;
-              found = true;
               break;
             }
           }
@@ -492,11 +592,12 @@ function _doPost(e) {
         } catch (e) { results.errors++; }
       });
       // not_found: quantidade (compatível com versões antigas); not_found_ids: quais marcações não acharam a pesquisa
-      return jsonResponse({ status: 'ok', processed: data.updates.length, updated: results.ok, not_found: results.not_found.length, not_found_ids: results.not_found, errors: results.errors });
+      return jsonResponse({ status: 'ok', processed: data.updates.length, updated: results.ok, not_found: results.not_found.length, not_found_ids: results.not_found, proibido_ids: results.proibidos, errors: results.errors });
     }
 
     // register_pi: salva em PropertiesService (sem criar aba na planilha)
     if (data._action === 'register_pi') {
+      if (!_podeGravar(user, _opDaPesquisa(data.sala, data.captador), data.captador)) return jsonResponse({ status: 'error', code: 'proibido', id: data.id });
       const pis = getPIs();
       if (pis.some(p => String(p.id) === String(data.id))) {
         return jsonResponse({ status: 'duplicate', id: data.id });
@@ -521,6 +622,7 @@ function _doPost(e) {
     if (data.id === undefined || data.id === null || String(data.id).trim() === '') {
       return jsonResponse({ status: 'error', code: 'sem_id', message: 'Pesquisa sem ID não foi gravada' });
     }
+    if (!_podeGravar(user, _opDaPesquisa(data.sala, data.captador), data.captador)) return jsonResponse({ status: 'error', code: 'proibido', id: data.id });
     // v9: procura o ID em todas as abas de pesquisas (a mesma pesquisa pode chegar com outra sala)
     let sheet = resolverSheet(data.sala || '');
     let existingRow = findRowById(sheet, data.id);
@@ -609,8 +711,12 @@ function _doPost(e) {
 
 function doGet(e) {
   const p = e && e.parameter ? e.parameter : {};
+  // A lista de nomes da equipe é pública (a tela de entrada precisa dela antes do login)
+  if (p.action === 'listarEquipe') return _doGet(e, null);
+  const a = _autenticar(p.cracha);
+  if (!a.ok) return jsonResponse({ status: 'error', code: a.code });
   const escreve = p.action === 'saveDDP'; // v14: update_sala roda sem a trava
-  return escreve ? comTrava(() => _doGet(e)) : _doGet(e);
+  return escreve ? comTrava(() => _doGet(e, a.user)) : _doGet(e, a.user);
 }
 
 // ── Chave de acesso para ler a lista de pesquisas (v9) ──
@@ -849,17 +955,39 @@ function equipeMinhaSenha(data) {
 // Entrada no app: responde só ok ou erro (mesmo limite de tentativas)
 function equipeLogin(data) {
   const c = _conferirSenha(data.nome, data.senha);
-  return jsonResponse(c.ok ? { status: 'ok' } : { status: 'error', code: c.code });
+  return jsonResponse(c.ok ? { status: 'ok', cracha: emitirCracha(c.membro) } : { status: 'error', code: c.code });
 }
-// O celular logado desde "desde" ainda vale? (senha redefinida depois ou desativado → refazer login)
+// Celular já logado: troca a senha pessoal guardada nele (em código) por um crachá, sem digitar de novo.
+// Mesmo limite de tentativas do login.
+function equipeCrachaPorHash(data) {
+  const cache = CacheService.getScriptCache(), k = 'erros_' + _chaveNome(data.nome);
+  const erros = Number(cache.get(k) || 0);
+  if (erros >= 5) return jsonResponse({ status: 'error', code: 'bloqueado' });
+  const m = _acharMembro(data.nome);
+  const h = String(data.hash || '').toLowerCase();
+  if (!m || !m.ativo || !/^[0-9a-f]{64}$/.test(h) || !_iguais(h, m.senhaHash)) {
+    cache.put(k, String(erros + 1), 900);
+    return jsonResponse({ status: 'error', code: 'senha_nao_confere' });
+  }
+  if (m.resetEm && String(data.desde || '') < m.resetEm) return jsonResponse({ status: 'error', code: 'refazer_login' });
+  cache.remove(k);
+  return jsonResponse({ status: 'ok', cracha: emitirCracha(m) });
+}
+// O celular logado ainda vale? Com crachá: confere e devolve um crachá novo (renova a validade).
+// Sem crachá (versões antigas do app): confere por nome + data do último login.
 function equipeSessao(data) {
+  if (data.cracha) {
+    const u = lerCracha(data.cracha);
+    if (u) return jsonResponse({ status: 'ok', cracha: emitirCracha(_acharMembro(u.nome)) });
+    // crachá vencido ou inválido: segue para a conferência por nome + data (sem crachá novo)
+  }
   const m = _acharMembro(data.nome);
   if (!m || !m.ativo) return jsonResponse({ status: 'error', code: 'refazer_login' });
   if (m.resetEm && String(data.desde || '') < m.resetEm) return jsonResponse({ status: 'error', code: 'refazer_login' });
   return jsonResponse({ status: 'ok' });
 }
 
-function _doGet(e) {
+function _doGet(e, user) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const params = e && e.parameter ? e.parameter : {};
@@ -871,6 +999,7 @@ function _doGet(e) {
       for (const sheet of sheetsAlvo) {
         const row = findRowById(sheet, params.id);
         if (row > 0) {
+          if (!_podeMarcar(user, sheet, row)) return jsonResponse({ status: 'error', code: 'proibido', id: params.id });
           const cabecalho = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
           const set = (col, val) => {
             const i = cabecalho.indexOf(col);
@@ -896,13 +1025,13 @@ function _doGet(e) {
     // ?_type=pi — retorna pesquisas incompletas do PropertiesService
     if (params._type === 'pi') {
       if (!chaveLeadsOk(params)) return jsonResponse({ status: 'unauthorized' });
-      return jsonResponse({ status: 'ok', pis: getPIs() });
+      return jsonResponse({ status: 'ok', pis: getPIs().filter(x => _podeLer(user, _opDaPesquisa(x.sala, x.captador), x.captador)) });
     }
 
     // ?action=getDDP&hotel=SPTR — retorna registros DDP
     if (params.action === 'getDDP') {
       const hotel = params.hotel || '';
-      const store = getDDPStore();
+      const store = getDDPStore().filter(r => _podeLer(user, SALA_OPERACAO[r.hotel] || '', null));
       const rows = hotel ? store.filter(r => r.hotel === hotel) : store;
       return jsonResponse({ status: 'ok', rows });
     }
@@ -912,6 +1041,7 @@ function _doGet(e) {
       const hotel   = params.hotel   || '';
       const dateISO = (params.dateISO || '').replace(/^DDP_/, '');
       if (!hotel || !dateISO) return jsonResponse({ status: 'error', message: 'hotel e dateISO obrigatórios' });
+      if (!_podeGravar(user, SALA_OPERACAO[hotel] || '', null)) return jsonResponse({ status: 'error', code: 'proibido' });
       const entry = {
         hotel, dateISO,
         ciPool:     Number(params.ciPool)     || 0,
@@ -987,6 +1117,7 @@ function _doGet(e) {
           if (dateTo   && rowDateISO && rowDateISO > dateTo)   return;
         }
         const get = (col) => idx[col] >= 0 ? r[idx[col]] : '';
+        if (!_podeLer(user, _opDaPesquisa(get('Sala'), get('Captador')), get('Captador'))) return;
         leads.push({
           id: String(get('ID')), date: String(get('Data')), time: (function(){ var v = get('Hora'); if (!v) return ''; if (v instanceof Date) return Utilities.formatDate(v, 'America/Sao_Paulo', 'HH:mm'); return String(v); })(),
           captador: get('Captador'), sala: get('Sala'), pontoCaptacao: get('PontoCaptacao'), nome: get('Nome'),
