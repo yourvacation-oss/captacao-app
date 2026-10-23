@@ -900,7 +900,6 @@
     </div>
     <button type="button" class="lg-link" onclick="voltarParaBusca()">Não é você? Trocar nome</button>
     <button type="button" class="lg-link discreto" onclick="mostrarAjudaSenha()">Esqueci minha senha</button>
-    <button id="pwResetEmergencial" class="hidden" type="button" style="background:#1a4a2a;border:1px solid #2a6a44;color:#a8e0b8;font-size:13px;font-weight:600;cursor:pointer;border-radius:10px;padding:10px;width:100%;font-family:inherit" onclick="pwResetEmergencial()">Redefinir (usar senha do líder)</button>
   </div>
 
   <!-- PAINEL: esqueci minha senha -->
@@ -1366,107 +1365,107 @@ const CONFIG = {
     // São Pedro — captadores escolhem a sala ao iniciar (Thermas SP ou SPTR)
     // Bruno Moisés, José Heraldo e Mayra Teixeira → SPTR fixo
     // Demais → sem sala fixa (escolhem ao qualificar)
-    { nome: 'Alayne Helena Guisini Rosa',        cargo: 'captador', operacao: 'São Pedro', senhaHash: '242c5938003bb9f8e1d7cf9401edf3f48b0979d231ac286cb758693d5a85f58f' },
-    { nome: 'Andrey Mansur de Andrade',          cargo: 'captador', operacao: 'São Pedro', senhaHash: '263ff3ae3a19c5c974fc1675985ad68acad1a4cd95d2781f8b21f51325631a1a' },
-    { nome: 'Antony Alex dos Santos',            cargo: 'captador', operacao: 'São Pedro', senhaHash: '16634349387974f3e363104d54031d5376cc2bb79ebd97496f89e75d8cbad41b' },
-    { nome: 'Bruno Moisés',                      cargo: 'captador', operacao: 'São Pedro', sala: 'SPTR', senhaHash: '519d074bcf48d6a73e9fcdf57e382ae0050d4d6b13d9860d4f55e54af3ea77de' },
-    { nome: 'Murilo Henrique',                   cargo: 'captador', operacao: 'São Pedro', senhaHash: '8433136f0f96ae634caaa199f0742614c469ba9eaac3a3acaa1a3ed0d565fa67' },
-    { nome: 'Flavio Henrique Marcondes',         cargo: 'captador', operacao: 'São Pedro', senhaHash: '2aa3a11eab1eb052b0c9e0e1efd638608f7cf78d2d66b467b60f9562d3987057' },
-    { nome: 'Glaucilene Barbosa Ribeiro',        cargo: 'captador', operacao: 'São Pedro', senhaHash: '9b99a36d49c8ab0291add94ff14f3a01c7ec1c55c0708a9a991c938c306cce14' },
-    { nome: 'Ivan Gabriel Botão as Silva',       cargo: 'captador', operacao: 'São Pedro', senhaHash: '6c84b1086e558a0b9dad7623979f6ddf9f337084f281d9b3a07273d04b425344' },
-    { nome: 'João Mario Dias Silva',             cargo: 'captador', operacao: 'São Pedro', senhaHash: '73cb527d86806651b552209ba1b6a2d84f0f34413c42fa284a9fd47c064493fd' },
-    { nome: 'João Pedro de Matos Saia',          cargo: 'captador', operacao: 'São Pedro', senhaHash: 'f864e2834f0bdc1a76e229e5c5bdf31c696146967533fe476b370ed4bee796d4' },
-    { nome: 'João Victor Ferreira Rodrigues',    cargo: 'captador', operacao: 'São Pedro', senhaHash: '993ec596db5df0fe4592b291da08e52cb214cdfc1331cdd092704f82735ee20f' },
-    { nome: 'Julia Eyer da Cunha',               cargo: 'captador', operacao: 'São Pedro', senhaHash: 'cdbd41d016cdec10d0ff2291a6bdae398b565a831622bedcd4dcafa69252b5e7' },
-    { nome: 'José Heraldo',                      cargo: 'captador', operacao: 'São Pedro', sala: 'SPTR', senhaHash: '3c15990dc727dc05256b2a16ca3dce571d42767b85008fb4c90c1dc24131adff' },
-    { nome: 'Lucas de Souza Miranda',            cargo: 'captador', operacao: 'São Pedro', senhaHash: 'ad1e10c7f2d809520c2191e442ed016ed7507debeaad03d061a97ec69dc2361e' },
-    { nome: 'Matheus Henrique Franca Silva',     cargo: 'captador', operacao: 'São Pedro', senhaHash: '05a9e62653eb0eaa116a1b8bbc06dd30ab0df73ab8ae16a500c80875e6e6c8a9' },
-    { nome: 'Mayara Teixeira da Silva',          cargo: 'captador', operacao: 'São Pedro', senhaHash: 'c7a110bf85ca72649e0b16de55a28edda316dcf10202c29e86b0400aa09ef828' },
-    { nome: 'Mayra Teixeira',                    cargo: 'captador', operacao: 'São Pedro', sala: 'SPTR', senhaHash: 'dc65d6126fdf082d5c6a92e3344870538035850fd5a67c8a0fd53302b6e54371' },
-    { nome: 'Patrick Henrique Faria',            cargo: 'captador', operacao: 'São Pedro', senhaHash: '830557a900f7c746d6a02f4be5b4434d53ecfb40fb88b8e865c7a4213c7a5d04' },
-    { nome: 'Raphael Luiz Ramos Milano',         cargo: 'captador', operacao: 'São Pedro', senhaHash: '1f5fed26678ed82e4c57d7b4b395deb6847fc62d60db853af70483739a395b66' },
-    { nome: 'Romenik Cardoso de Jesus',          cargo: 'captador', operacao: 'São Pedro', senhaHash: 'f20728d227541307b6b673bcd3fd5a80df1e5a11290ea9ceb0b62d6a23e4f351' },
-    { nome: 'Tiago Batista Santos',              cargo: 'captador', operacao: 'São Pedro', senhaHash: 'c90dc61cae171669019bbabecad9c1c06aebb586cc1fb0b1a60efaa1594244dd' },
-    { nome: 'Vinicius Alves Brilho',             cargo: 'captador', operacao: 'São Pedro', senhaHash: 'f2d009efda17558eb1522b37b62f9aa11404f5fc91d7c0e9f849a8bde20750c4' },
-    { nome: 'Vinicius Eduardo Alves de Lima',    cargo: 'captador', operacao: 'São Pedro', senhaHash: '36568ce38fe75d769846e592d9b313513504c78620155f50aecd420eb4dcad83' },
-    { nome: 'Walasson de Jesus Alves',           cargo: 'captador', operacao: 'São Pedro', senhaHash: '3d11860579fa943ae671629212fbbcdc3efe9d801b9a5b864da3e3b4a9a82cf6' },
-    { nome: 'José Victor de Mendonça',           cargo: 'captador', operacao: 'São Pedro', senhaHash: '0e19523f49e063d677feae374ac324ce6bed81ab1ca164985de61838c086ffa9' },
+    { nome: 'Alayne Helena Guisini Rosa',        cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'Andrey Mansur de Andrade',          cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'Antony Alex dos Santos',            cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'Bruno Moisés',                      cargo: 'captador', operacao: 'São Pedro', sala: 'SPTR' },
+    { nome: 'Murilo Henrique',                   cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'Flavio Henrique Marcondes',         cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'Glaucilene Barbosa Ribeiro',        cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'Ivan Gabriel Botão as Silva',       cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'João Mario Dias Silva',             cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'João Pedro de Matos Saia',          cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'João Victor Ferreira Rodrigues',    cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'Julia Eyer da Cunha',               cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'José Heraldo',                      cargo: 'captador', operacao: 'São Pedro', sala: 'SPTR' },
+    { nome: 'Lucas de Souza Miranda',            cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'Matheus Henrique Franca Silva',     cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'Mayara Teixeira da Silva',          cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'Mayra Teixeira',                    cargo: 'captador', operacao: 'São Pedro', sala: 'SPTR' },
+    { nome: 'Patrick Henrique Faria',            cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'Raphael Luiz Ramos Milano',         cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'Romenik Cardoso de Jesus',          cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'Tiago Batista Santos',              cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'Vinicius Alves Brilho',             cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'Vinicius Eduardo Alves de Lima',    cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'Walasson de Jesus Alves',           cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'José Victor de Mendonça',           cargo: 'captador', operacao: 'São Pedro' },
     // — Caldas Novas (Alta Vista / Atrium / Marina) —
-    { nome: 'Vanessa Silva',      cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '0390ae68bd73b4314f86e5f4ad6f7c060f2bc43c37eb801feb5767160960fa91' },
-    { nome: 'Natur Calixto',      cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '4ab2c3d4fa0c04a0d47270749aaf16d2b6796678c160677b02f199ff834ae65f' },
-    // { nome: 'Neuselia Ferreira',  cargo: 'captador', operacao: 'Caldas Novas', senhaHash: 'e05bbd73204b1d7e48b5eb9cd92ba8537794ba14c5698f37ab0e36151ebc6665' }, // desativado 27/08/2026
-    // { nome: 'Eduardo Castellani', cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '...' }, // desativado 24/04/2026
-    // { nome: 'Luciano Camilo',     cargo: 'captador', operacao: 'Caldas Novas', senhaHash: 'b42faf87ea2f8c0db71c7218af5299e890ce581d00e926bb06f2827851118ace' }, // desligado 13/05/2026
-    // { nome: 'Walker Rabello',     cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '732630aeaa712ecfd5a2cf08c13142e36c20385bde1db72c1a713858f1c98aba' }, // desligado 17/05/2026
-    // { nome: 'Arthur Oliveira dos Santos', cargo: 'captador', operacao: 'Caldas Novas', senhaHash: 'cf30b4309d431c60d7a4b1ad788304756633649c65f8198455f413cac9fc708a' }, // desativado 27/08/2026
-    // { nome: 'Rômulo Guerreiro da Silva',       cargo: 'captador', operacao: 'Caldas Novas', senhaHash: 'ddd9ecdaf041a9414eb68e475d1ab076c58bbb7f330dc53afc1617a7dc8d3b1b' }, // desativado 27/08/2026
-    // { nome: 'Ana Carolina Martins Seabra',    cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '0adbf066b2c205d27731e624aec2c4d6d124b5c3c1241b1e274508e1b8f91708' }, // desativada 11/09/2026 (Erick solicitou)
-    // { nome: 'Ariane dos Santos Araújo',       cargo: 'captador', operacao: 'Caldas Novas', senhaHash: 'e1d0c5438c3dc9b6744685d0b86c75bb2500bab4e4b13b736f135eb7a24e9c20' }, // desativado 27/08/2026
-    // { nome: 'Walisson Rodrigues da Silva',    cargo: 'captador', operacao: 'Caldas Novas', senhaHash: 'c13b2cc14c4f01e479b958ed1458bbbfa9caedf2c66f385776850f05f1fb53bd' }, // desligado 15/07/2026
-    // { nome: 'Tales Eduardo Souza',            cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92' }, // desativado 27/08/2026
-    { nome: 'Lucas Carvalho Barreto dos Santos', cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '9a0d925ec7a81e2190c716abb31dff8154f25cfd7038874f65b5a6af3b76fc13' },
-    // { nome: 'Marcelo Maciel Mota',              cargo: 'captador', operacao: 'Caldas Novas', senhaHash: 'e6c60f9a0a468cbce7cdf751d571312d93cffdae90ad83992d1ad7bc7b82a19a' }, // desativado 27/08/2026
-    // { nome: 'Fausto Pereira Ramalho',            cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '0a48a7bda9af717b7c1d0e56fc1a9bd2f99e0b3b52de970315e9ffe7e34ab6ca' }, // desativado 27/08/2026
-    // { nome: 'Paula Cristina',                    cargo: 'captador', operacao: 'Caldas Novas', senhaHash: 'c7bbaf394abbe302f22c36b6e9c835d761e0faa84cebfc40ad8e6f4fc9264be9' }, // desativada 11/09/2026 (Erick solicitou)
-    // { nome: 'Raniere de Sousa Alencar',           cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '5760441daf5dd35fa99b0932d306f23345e0a04e45763df5d151196da56974c5' }, // desativado 27/08/2026
-    // { nome: 'Thatiana de Fátima Borges',           cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '1427db21f2f51e28c96793d97e714d98e4671579f576717e89a14e85e21cfb03' }, // desativado 27/08/2026
-    { nome: 'Leonardo Neves',                      cargo: 'captador', operacao: 'Caldas Novas', senhaHash: 'cc1359da8af28fc2337ba66d9875279f51e2b193ba768f6d1fcde54c7fa08360' },
-    // { nome: 'Maycon Fernandes',                    cargo: 'captador', operacao: 'Caldas Novas', senhaHash: 'cc1359da8af28fc2337ba66d9875279f51e2b193ba768f6d1fcde54c7fa08360' }, // desativado 27/08/2026
-    // { nome: 'Evandro Pires',                       cargo: 'captador', operacao: 'Caldas Novas', senhaHash: 'cc1359da8af28fc2337ba66d9875279f51e2b193ba768f6d1fcde54c7fa08360' }, // desativado 11/09/2026 (Erick solicitou)
-    { nome: 'Renata Ribeiro de Souza Lima Soares', cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '0a48aecd23379b7231661a42f7accd43431d0d47dbc3e19d1f77e363571457a2' },
-    // { nome: 'Marco Antônio Gomes Junior',         cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '77ad8ff6d4d6130860aff645068fa18b166ed68a564d6c20dc95af934b3b3d75' }, // desativado 27/08/2026
-    // { nome: 'Letícia Aparecida da Cruz',         cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '40157349cdfd27c088cb50cbc6441d5376a195f9ad9a1b8720a7d3375fbf90e9' }, // desativada 11/09/2026 (Erick solicitou)
-    { nome: 'Alaine Ferreira Leite',             cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '5e810a6390dc4345ccf13532e480c60258a66b4b2d760c3b0888d9e4edf13dde', resetSenha: true }, // senha resetada para YV456 em 08/10/2026 (Erick solicitou)
-    // { nome: 'Tais Zulmira Hipólito',             cargo: 'captador', operacao: 'Atibaia', senhaHash: '1dfd112745381d497cff6f29aaddd3b006d0090f4cb9096cd86f79dbdac2b154' }, // desativado 27/08/2026 (Erick pediu pra desativar junto com o lote de Caldas)
-    // { nome: 'Maycon Douglas Cardoso Silva',    cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '9d616f6bba6d3944cae8f9235affb6e0df0d12d37baad2e87a851c1eb6e9de74' }, // desligado 25/05/2026
-    // { nome: 'Cleber Araujo',      cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '61365f9db11fb7ee77f5cedabf41e8d72031775f0b434c075ae9babacdc390af' }, // desligado 13/05/2026
-    // { nome: 'Ulisses Nogueira da Silva',         cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '0adeec5ea25b0e8095073ade717d5110d5872e7adf86bf9b7a17f9463f6db17e' }, // desativado 11/09/2026 (Erick solicitou)
+    { nome: 'Vanessa Silva',      cargo: 'captador', operacao: 'Caldas Novas' },
+    { nome: 'Natur Calixto',      cargo: 'captador', operacao: 'Caldas Novas' },
+    // { nome: 'Neuselia Ferreira',  cargo: 'captador', operacao: 'Caldas Novas' }, // desativado 27/08/2026
+    // { nome: 'Eduardo Castellani', cargo: 'captador', operacao: 'Caldas Novas', }, // desativado 24/04/2026
+    // { nome: 'Luciano Camilo',     cargo: 'captador', operacao: 'Caldas Novas' }, // desligado 13/05/2026
+    // { nome: 'Walker Rabello',     cargo: 'captador', operacao: 'Caldas Novas' }, // desligado 17/05/2026
+    // { nome: 'Arthur Oliveira dos Santos', cargo: 'captador', operacao: 'Caldas Novas' }, // desativado 27/08/2026
+    // { nome: 'Rômulo Guerreiro da Silva',       cargo: 'captador', operacao: 'Caldas Novas' }, // desativado 27/08/2026
+    // { nome: 'Ana Carolina Martins Seabra',    cargo: 'captador', operacao: 'Caldas Novas' }, // desativada 11/09/2026 (Erick solicitou)
+    // { nome: 'Ariane dos Santos Araújo',       cargo: 'captador', operacao: 'Caldas Novas' }, // desativado 27/08/2026
+    // { nome: 'Walisson Rodrigues da Silva',    cargo: 'captador', operacao: 'Caldas Novas' }, // desligado 15/07/2026
+    // { nome: 'Tales Eduardo Souza',            cargo: 'captador', operacao: 'Caldas Novas' }, // desativado 27/08/2026
+    { nome: 'Lucas Carvalho Barreto dos Santos', cargo: 'captador', operacao: 'Caldas Novas' },
+    // { nome: 'Marcelo Maciel Mota',              cargo: 'captador', operacao: 'Caldas Novas' }, // desativado 27/08/2026
+    // { nome: 'Fausto Pereira Ramalho',            cargo: 'captador', operacao: 'Caldas Novas' }, // desativado 27/08/2026
+    // { nome: 'Paula Cristina',                    cargo: 'captador', operacao: 'Caldas Novas' }, // desativada 11/09/2026 (Erick solicitou)
+    // { nome: 'Raniere de Sousa Alencar',           cargo: 'captador', operacao: 'Caldas Novas' }, // desativado 27/08/2026
+    // { nome: 'Thatiana de Fátima Borges',           cargo: 'captador', operacao: 'Caldas Novas' }, // desativado 27/08/2026
+    { nome: 'Leonardo Neves',                      cargo: 'captador', operacao: 'Caldas Novas' },
+    // { nome: 'Maycon Fernandes',                    cargo: 'captador', operacao: 'Caldas Novas' }, // desativado 27/08/2026
+    // { nome: 'Evandro Pires',                       cargo: 'captador', operacao: 'Caldas Novas' }, // desativado 11/09/2026 (Erick solicitou)
+    { nome: 'Renata Ribeiro de Souza Lima Soares', cargo: 'captador', operacao: 'Caldas Novas' },
+    // { nome: 'Marco Antônio Gomes Junior',         cargo: 'captador', operacao: 'Caldas Novas' }, // desativado 27/08/2026
+    // { nome: 'Letícia Aparecida da Cruz',         cargo: 'captador', operacao: 'Caldas Novas' }, // desativada 11/09/2026 (Erick solicitou)
+    { nome: 'Alaine Ferreira Leite',             cargo: 'captador', operacao: 'Caldas Novas' }, // senha redefinida em 08/10/2026 (Erick solicitou)
+    // { nome: 'Tais Zulmira Hipólito',             cargo: 'captador', operacao: 'Atibaia' }, // desativado 27/08/2026 (Erick pediu pra desativar junto com o lote de Caldas)
+    // { nome: 'Maycon Douglas Cardoso Silva',    cargo: 'captador', operacao: 'Caldas Novas' }, // desligado 25/05/2026
+    // { nome: 'Cleber Araujo',      cargo: 'captador', operacao: 'Caldas Novas' }, // desligado 13/05/2026
+    // { nome: 'Ulisses Nogueira da Silva',         cargo: 'captador', operacao: 'Caldas Novas' }, // desativado 11/09/2026 (Erick solicitou)
     // — Atibaia —
-    // { nome: 'Evelyn Mirella Bueno Ramos', cargo: 'captador', sala: 'Atibaia', senhaHash: '88c2f89f9caee1bea44c0d506fdf121c99a91e7d454d92ce0e0d0f23eec75e0d' }, // desligada 07/05/2026
-    // { nome: 'Pablo César Sánchez Montealegre',     cargo: 'captador', sala: 'Atibaia', senhaHash: 'c1761e6dff44a93b593ed7447d983c259a5aefdf3a11960b81c2196ca56772bc' }, // desligado 13/05/2026
-    // { nome: 'Diego Santos de Lima',               cargo: 'captador', operacao: 'Atibaia', senhaHash: 'df85278327aa37e896b48dbe64ac4c34986562bd1075951a6863de3a7a23031c' }, // desligado 30/06/2026
-    // { nome: 'Guilherme Campos de Castilho',       cargo: 'captador', operacao: 'Atibaia', senhaHash: '072e689d4a6c8baaf7508c909836d61125b6447906872d4cd92309a8a53f3e04' }, // desligado 30/06/2026 — reativado em 27/08/2026 (transferido pra Ribeirão Preto, ver linha abaixo)
-    { nome: 'Guilherme Campos de Castilho',         cargo: 'captador', operacao: 'Ribeirão Preto', senhaHash: '5e810a6390dc4345ccf13532e480c60258a66b4b2d760c3b0888d9e4edf13dde', resetSenha: true }, // senha resetada para YV456 em 06/09/2026 (Erick padronizou senhas de Ribeirão)
-    // { nome: 'Ismael Rodrigo Araújo de Sousa',     cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '9826d409a7390795a2b6e7176fcb4b9b97d911126c2a0d9ae045a0f811af636d' }, // desativado 11/09/2026 (Erick solicitou — grafia original: 'Ismael Rodrigues' no cadastro)
-    // { nome: 'Cristina Gonçalves Lobo',            cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '54b6d84a5cfa83703cf3da4940e2617f8858553f33995165ea17746870226a76' }, // desativada 11/09/2026 (Erick solicitou)
-    { nome: 'Allysson da Silva Acris',              cargo: 'captador', operacao: 'Ribeirão Preto', senhaHash: '5e810a6390dc4345ccf13532e480c60258a66b4b2d760c3b0888d9e4edf13dde', resetSenha: true }, // senha resetada para YV456 em 06/09/2026
-    // { nome: 'Tais Zulmira Hipólito',             cargo: 'captador', operacao: 'Atibaia', senhaHash: '1dfd112745381d497cff6f29aaddd3b006d0090f4cb9096cd86f79dbdac2b154' }, // desativada em Caldas em 27/08 — reativada em Ribeirão Preto na linha abaixo
-    { nome: 'Tais Zulmira Hipólito',               cargo: 'captador', operacao: 'Ribeirão Preto', senhaHash: '5e810a6390dc4345ccf13532e480c60258a66b4b2d760c3b0888d9e4edf13dde', resetSenha: true }, // senha resetada para YV456 em 06/09/2026
-    { nome: 'Nayara Pereira Tavares',              cargo: 'lider',    operacao: 'Ribeirão Preto', senhaHash: '5e810a6390dc4345ccf13532e480c60258a66b4b2d760c3b0888d9e4edf13dde', resetSenha: true }, // senha resetada para YV456 em 06/09/2026 (a líder de Ribeirão também ficou padronizada)
-    { nome: 'Paulo Ricardo Rodrigues da silva',   cargo: 'captador', operacao: 'Ribeirão Preto', senhaHash: '5e810a6390dc4345ccf13532e480c60258a66b4b2d760c3b0888d9e4edf13dde', resetSenha: true }, // transferido de Atibaia → Ribeirão Preto em 27/08/2026; senha resetada para YV456 em 06/09/2026
-    { nome: 'Lais Rodrigues Arantes',              cargo: 'captador', operacao: 'Ribeirão Preto', senhaHash: '5e810a6390dc4345ccf13532e480c60258a66b4b2d760c3b0888d9e4edf13dde', resetSenha: true }, // cadastrada 06/09/2026 por Erick; senha inicial YV456
-    // { nome: 'Francisco Rodrigues de Oliveira Neto', cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '5e810a6390dc4345ccf13532e480c60258a66b4b2d760c3b0888d9e4edf13dde', resetSenha: true }, // desativado 11/09/2026 (Erick solicitou) — cadastrado em 05/09/2026 com senha YV456
-    { nome: 'Douglas de Souza',                       cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '5e810a6390dc4345ccf13532e480c60258a66b4b2d760c3b0888d9e4edf13dde', resetSenha: true }, // cadastrado 08/09/2026 por Erick; senha inicial YV456
-    { nome: 'Erika Camila Lopes Bezerra',             cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '5e810a6390dc4345ccf13532e480c60258a66b4b2d760c3b0888d9e4edf13dde', resetSenha: true }, // cadastrada 10/09/2026 por Erick; senha inicial YV456
-    { nome: 'Ester Garcia Godoi Mamede',              cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '5e810a6390dc4345ccf13532e480c60258a66b4b2d760c3b0888d9e4edf13dde', resetSenha: true }, // cadastrada 25/09/2026 por Erick; senha inicial YV456
-    { nome: 'Denys Donizete Santana',                 cargo: 'captador', operacao: 'Caldas Novas', senhaHash: '5e810a6390dc4345ccf13532e480c60258a66b4b2d760c3b0888d9e4edf13dde', resetSenha: true }, // cadastrado 04/10/2026 por Erick; senha inicial YV456
-    { nome: 'Rariane Moreira Dos Santos',              cargo: 'supervisor_adm', operacao: 'Caldas Novas', senhaHash: '5e810a6390dc4345ccf13532e480c60258a66b4b2d760c3b0888d9e4edf13dde', resetSenha: true }, // cadastrada 02/10/2026 por Erick; senha inicial YV456 — supervisor_adm com acesso total
-    { nome: 'Andréia Alves',                       cargo: 'captador', operacao: 'São Pedro',    senhaHash: '5e810a6390dc4345ccf13532e480c60258a66b4b2d760c3b0888d9e4edf13dde', resetSenha: true }, // cadastrada 05/09/2026 por Erick; senha inicial YV456
-    { nome: 'Cláudio Antônio Ferreira Júnior',    cargo: 'captador', operacao: 'São Pedro',    senhaHash: '5e810a6390dc4345ccf13532e480c60258a66b4b2d760c3b0888d9e4edf13dde', resetSenha: true }, // cadastrado 11/09/2026 por Erick; senha inicial YV456
-    { nome: 'Mateus Coutinho Ferreira',            cargo: 'captador', operacao: 'São Pedro',    senhaHash: '5e810a6390dc4345ccf13532e480c60258a66b4b2d760c3b0888d9e4edf13dde', resetSenha: true }, // cadastrado 11/09/2026 por Erick; senha inicial YV456
-    { nome: 'Melissa Luanna do Nascimento',        cargo: 'captador', operacao: 'São Pedro',    senhaHash: '5e810a6390dc4345ccf13532e480c60258a66b4b2d760c3b0888d9e4edf13dde', resetSenha: true }, // cadastrada 11/09/2026 por Erick; senha inicial YV456
+    // { nome: 'Evelyn Mirella Bueno Ramos', cargo: 'captador', sala: 'Atibaia' }, // desligada 07/05/2026
+    // { nome: 'Pablo César Sánchez Montealegre',     cargo: 'captador', sala: 'Atibaia' }, // desligado 13/05/2026
+    // { nome: 'Diego Santos de Lima',               cargo: 'captador', operacao: 'Atibaia' }, // desligado 30/06/2026
+    // { nome: 'Guilherme Campos de Castilho',       cargo: 'captador', operacao: 'Atibaia' }, // desligado 30/06/2026 — reativado em 27/08/2026 (transferido pra Ribeirão Preto, ver linha abaixo)
+    { nome: 'Guilherme Campos de Castilho',         cargo: 'captador', operacao: 'Ribeirão Preto' }, // senha redefinida em 06/09/2026 (Erick padronizou senhas de Ribeirão)
+    // { nome: 'Ismael Rodrigo Araújo de Sousa',     cargo: 'captador', operacao: 'Caldas Novas' }, // desativado 11/09/2026 (Erick solicitou — grafia original: 'Ismael Rodrigues' no cadastro)
+    // { nome: 'Cristina Gonçalves Lobo',            cargo: 'captador', operacao: 'Caldas Novas' }, // desativada 11/09/2026 (Erick solicitou)
+    { nome: 'Allysson da Silva Acris',              cargo: 'captador', operacao: 'Ribeirão Preto' }, // senha redefinida em 06/09/2026
+    // { nome: 'Tais Zulmira Hipólito',             cargo: 'captador', operacao: 'Atibaia' }, // desativada em Caldas em 27/08 — reativada em Ribeirão Preto na linha abaixo
+    { nome: 'Tais Zulmira Hipólito',               cargo: 'captador', operacao: 'Ribeirão Preto' }, // senha redefinida em 06/09/2026
+    { nome: 'Nayara Pereira Tavares',              cargo: 'lider',    operacao: 'Ribeirão Preto' }, // senha redefinida em 06/09/2026 (a líder de Ribeirão também ficou padronizada)
+    { nome: 'Paulo Ricardo Rodrigues da silva',   cargo: 'captador', operacao: 'Ribeirão Preto' }, // transferido de Atibaia → Ribeirão Preto em 27/08/2026; senha redefinida em 06/09/2026
+    { nome: 'Lais Rodrigues Arantes',              cargo: 'captador', operacao: 'Ribeirão Preto' }, // cadastrada 06/09/2026 por Erick
+    // { nome: 'Francisco Rodrigues de Oliveira Neto', cargo: 'captador', operacao: 'Caldas Novas' }, // desativado 11/09/2026 (Erick solicitou) — cadastrado em 05/09/2026
+    { nome: 'Douglas de Souza',                       cargo: 'captador', operacao: 'Caldas Novas' }, // cadastrado 08/09/2026 por Erick
+    { nome: 'Erika Camila Lopes Bezerra',             cargo: 'captador', operacao: 'Caldas Novas' }, // cadastrada 10/09/2026 por Erick
+    { nome: 'Ester Garcia Godoi Mamede',              cargo: 'captador', operacao: 'Caldas Novas' }, // cadastrada 25/09/2026 por Erick
+    { nome: 'Denys Donizete Santana',                 cargo: 'captador', operacao: 'Caldas Novas' }, // cadastrado 04/10/2026 por Erick
+    { nome: 'Rariane Moreira Dos Santos',              cargo: 'supervisor_adm', operacao: 'Caldas Novas' }, // cadastrada 02/10/2026 por Erick — supervisor_adm com acesso total
+    { nome: 'Andréia Alves',                       cargo: 'captador', operacao: 'São Pedro' }, // cadastrada 05/09/2026 por Erick
+    { nome: 'Cláudio Antônio Ferreira Júnior',    cargo: 'captador', operacao: 'São Pedro' }, // cadastrado 11/09/2026 por Erick
+    { nome: 'Mateus Coutinho Ferreira',            cargo: 'captador', operacao: 'São Pedro' }, // cadastrado 11/09/2026 por Erick
+    { nome: 'Melissa Luanna do Nascimento',        cargo: 'captador', operacao: 'São Pedro' }, // cadastrada 11/09/2026 por Erick
     // — Lideranças —
-    { nome: 'Lucas Marotti',         cargo: 'sublider', operacao: 'São Pedro', senhaHash: 'd76cedbee29bc2393e5b6317f71525b51ffe8f656da3dfcbac94d237adc0030a' },
-    { nome: 'Gustavo Viana',          cargo: 'lider',    operacao: 'Caldas Novas', senhaHash: '01323463033669fc017b484ed78a487695d402cfb6927273e43f11d4f4ac295f' },
-    { nome: 'Rarley Rodrigo',         cargo: 'lider',    operacao: 'Caldas Novas', senhaHash: 'ceaf77ccc2b5ac550fd1fd34458f7a7790b0f0c6635e157eac3ac8237b944bce' },
-    { nome: 'Rogerio Medeiros',       cargo: 'lider',    operacao: 'São Pedro',    senhaHash: 'a5a9b74ffc8d1bdc63761cd5e397a8e36b3cd82d9b05236d283f4c350a49a9de' },
-    { nome: 'Camila Cristina Pinto', cargo: 'lider',    operacao: 'São Pedro',    senhaHash: '6aa6104fef39e5b462793b6ba614f945d40bd4a761965dc53b4720d83e85d8d0' },
-    { nome: 'André Luis Neves Fontes',cargo: 'sublider', operacao: 'Atibaia',       senhaHash: 'a84136124669f0f9cf606fa1049cb7fe6b6aca50b0f7570e836035e89caf3e54' }, // desativado 02/07/2026
-    // { nome: 'Erick Luis Lima Candido',cargo: 'sublider', operacao: 'Atibaia',       senhaHash: 'e5348fd91772d7503e675127da481d2958772acdc76fe8df17a5b828c0a87500' }, // desativado 11/09/2026 (Erick solicitou)
-    { nome: 'Carlos Alberto Caetano', cargo: 'captador', operacao: 'Atibaia',         senhaHash: '5e810a6390dc4345ccf13532e480c60258a66b4b2d760c3b0888d9e4edf13dde', resetSenha: true }, // cadastrado 11/09/2026 por Erick; nome corrigido em 14/09/2026 (era 'Carlos Roberto Caetano')
-    { nome: 'Amabilio Miguel dos Santos Neto',  cargo: 'captador', operacao: 'Atibaia',  senhaHash: '5e810a6390dc4345ccf13532e480c60258a66b4b2d760c3b0888d9e4edf13dde', resetSenha: true }, // cadastrado 17/09/2026 por Erick; senha inicial YV456
-    { nome: 'Raphael de Andrade Gomes',          cargo: 'captador', operacao: 'Atibaia', senhaHash: '5e810a6390dc4345ccf13532e480c60258a66b4b2d760c3b0888d9e4edf13dde', resetSenha: true }, // cadastrado 12/10/2026 por Erick; senha inicial YV456
-    // { nome: 'Luis Henrique Silva dos Santos',   cargo: 'captador', operacao: 'Atibaia',  senhaHash: '5e810a6390dc4345ccf13532e480c60258a66b4b2d760c3b0888d9e4edf13dde', resetSenha: true }, // desativado 12/10/2026 (Erick solicitou)
-    // { nome: 'Luis Eduardo De Oliveira Junior',cargo: 'sublider', operacao: 'Atibaia', senhaHash: '7c1ad9e8dde8e6fce3c9c0876af9f039e95118c0f68c9a4efe6c7085838c6ec1' }, // desativado 11/09/2026 (Erick solicitou)
-    { nome: 'Rayssa Gabriele Lucinda Gonzaga', cargo: 'captador', operacao: 'São Pedro', senhaHash: 'd8ff32cee01ca37f0c68af48740371a70305472cfa77531936a9e141d6355f6d' },
-    // { nome: 'Jefferson Breno de Lima Corrêa',   cargo: 'captador', operacao: 'Atibaia',     senhaHash: 'd3f3b81ee8f5d234655467f2e16bb6aa50d479ada2a001dc1746fb0384d0ce3f' }, // desativado 27/08/2026 (Erick solicitou)
-    // { nome: 'Nayse Santos Souza',                 cargo: 'captador', operacao: 'Atibaia',     senhaHash: '81a9b1454bf8656665b7d9153550a00446e8e808f6eb169b27ae4c00f0fa79fd' }, // desativada 11/09/2026 (Erick solicitou)
-    { nome: 'Giovanni Ramos Milano',              cargo: 'captador', operacao: 'São Pedro',   senhaHash: '0a48aecd23379b7231661a42f7accd43431d0d47dbc3e19d1f77e363571457a2' },
-    { nome: 'Mateus Conti dos Santos',            cargo: 'captador', operacao: 'São Pedro',   senhaHash: '0a48aecd23379b7231661a42f7accd43431d0d47dbc3e19d1f77e363571457a2' },
-    { nome: 'Ester Lucena Gaspar',                cargo: 'captador', operacao: 'São Pedro',   senhaHash: '0a48aecd23379b7231661a42f7accd43431d0d47dbc3e19d1f77e363571457a2' },
-    { nome: 'Fernando Cláudio de Barros',         cargo: 'captador', operacao: 'São Pedro',   senhaHash: '0a48aecd23379b7231661a42f7accd43431d0d47dbc3e19d1f77e363571457a2' },
-    { nome: 'acesso.diretoria',              cargo: 'ceo',                               senhaHash: '65f1e1f52072aa2411cd4941e964d7135ae5fb14e90203999c512d657c36c3a8', resetSenha: true }, // criado 21/10/2026 a pedido do Erick; mesma visão do CEO (sócios)
-    { nome: 'Erick Faleiro',          cargo: 'ceo',                               senhaHash: 'd6a6f6d36aa9001ed5521eec687c1fa4209e4c008e91f9cb8eb7512b32fc0ea7' },
+    { nome: 'Lucas Marotti',         cargo: 'sublider', operacao: 'São Pedro' },
+    { nome: 'Gustavo Viana',          cargo: 'lider',    operacao: 'Caldas Novas' },
+    { nome: 'Rarley Rodrigo',         cargo: 'lider',    operacao: 'Caldas Novas' },
+    { nome: 'Rogerio Medeiros',       cargo: 'lider',    operacao: 'São Pedro' },
+    { nome: 'Camila Cristina Pinto', cargo: 'lider',    operacao: 'São Pedro' },
+    { nome: 'André Luis Neves Fontes',cargo: 'sublider', operacao: 'Atibaia' }, // desativado 02/07/2026
+    // { nome: 'Erick Luis Lima Candido',cargo: 'sublider', operacao: 'Atibaia' }, // desativado 11/09/2026 (Erick solicitou)
+    { nome: 'Carlos Alberto Caetano', cargo: 'captador', operacao: 'Atibaia' }, // cadastrado 11/09/2026 por Erick; nome corrigido em 14/09/2026 (era 'Carlos Roberto Caetano')
+    { nome: 'Amabilio Miguel dos Santos Neto',  cargo: 'captador', operacao: 'Atibaia' }, // cadastrado 17/09/2026 por Erick
+    { nome: 'Raphael de Andrade Gomes',          cargo: 'captador', operacao: 'Atibaia' }, // cadastrado 12/10/2026 por Erick
+    // { nome: 'Luis Henrique Silva dos Santos',   cargo: 'captador', operacao: 'Atibaia' }, // desativado 12/10/2026 (Erick solicitou)
+    // { nome: 'Luis Eduardo De Oliveira Junior',cargo: 'sublider', operacao: 'Atibaia' }, // desativado 11/09/2026 (Erick solicitou)
+    { nome: 'Rayssa Gabriele Lucinda Gonzaga', cargo: 'captador', operacao: 'São Pedro' },
+    // { nome: 'Jefferson Breno de Lima Corrêa',   cargo: 'captador', operacao: 'Atibaia' }, // desativado 27/08/2026 (Erick solicitou)
+    // { nome: 'Nayse Santos Souza',                 cargo: 'captador', operacao: 'Atibaia' }, // desativada 11/09/2026 (Erick solicitou)
+    { nome: 'Giovanni Ramos Milano',              cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'Mateus Conti dos Santos',            cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'Ester Lucena Gaspar',                cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'Fernando Cláudio de Barros',         cargo: 'captador', operacao: 'São Pedro' },
+    { nome: 'acesso.diretoria',              cargo: 'ceo' }, // criado 21/10/2026 a pedido do Erick; mesma visão do CEO (sócios)
+    { nome: 'Erick Faleiro',          cargo: 'ceo' },
   ],
   salas: [
     { id: 'alta-vista', nome: 'Alta Vista',  cidade: 'Caldas Novas', modos: [],                   sheetName: 'Alta Vista',  operacao: 'Caldas Novas', ddpHotel: 'Alta Vista' },
@@ -1729,19 +1728,6 @@ async function sha256(str) {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
 }
 
-// Retorna o hash da senha armazenada para comparação.
-// Prioridade: localStorage (senha personalizada) > senhaHash do CONFIG/extras.
-// EXCEÇÃO: se resetSenha=true no cadastro, ignora localStorage (força uso da senha do CONFIG).
-function getSenhaHash(nome) {
-  const todos = equipeAtual();
-  const c = todos.find(x => x.nome === nome);
-  // Se resetSenha=true OU não tem captador cadastrado, ignora localStorage e usa o CONFIG
-  // v2.35: senha pessoal criada antes de o líder redefinir (ResetEm) também é ignorada
-  const stored = (!c || c.resetSenha) ? null : localStorage.getItem('yv_pw_' + nome);
-  if (stored) return stored; // já é um hash
-  return c ? (c.senhaHash || null) : null;
-}
-
 // Salva o hash da nova senha no localStorage.
 async function setSenha(nome, pw) {
   const h = await sha256(pw);
@@ -1797,11 +1783,10 @@ function equipeSincronizar() {
 function _membro(nome) { return equipeAtual().find(m => m.nome === nome) || null; }
 // v2.37: com a equipe vindo da planilha, quem confere a senha é a planilha (equipe_login).
 // Sem internet, vale só a senha pessoal já salva neste celular.
-function _equipeServidorAtivo() { return !!_equipeCentral(); }
 // Ao abrir com internet: a planilha diz se este celular precisa entrar de novo
 // (senha redefinida pelo líder depois do último login, ou pessoa desativada).
 function equipeVerificarSessao() {
-  if (!_equipeServidorAtivo() || !captador || !navigator.onLine || !API.ok()) return Promise.resolve();
+  if (!captador || !navigator.onLine || !API.ok()) return Promise.resolve();
   const nome = captador.nome;
   return API.postJson({ _action: 'equipe_sessao', nome, desde: localStorage.getItem('yv_login_em') || '' })
     .then(r => {
@@ -1942,7 +1927,7 @@ function initLogin() {
   if (savedNome) {
     const todos = equipeAtual();
     const found = todos.find(c => c.nome === savedNome);
-    if (found && _equipeServidorAtivo() && usaSenhaPadrao(found.nome)) {
+    if (found && usaSenhaPadrao(found.nome)) {
       // v2.37: fechou o app antes de criar a senha pessoal → entra de novo com a provisória
       document.getElementById('screenLogin').classList.remove('hidden');
       loginPickNome(found.nome);
@@ -1950,13 +1935,6 @@ function initLogin() {
     }
     if (found) {
       captador = found;
-      // v2.33: se fechou o app antes de criar a senha pessoal, volta para essa etapa
-      if (usaSenhaPadrao(found.nome)) {
-        document.getElementById('loginSelectPanel').classList.add('hidden');
-        document.getElementById('screenLogin').classList.remove('hidden');
-        abrirCriarSenha(found.nome);
-        return;
-      }
       document.getElementById('screenLogin').classList.add('hidden'); afterLogin(); return;
     }
     // v2.35: não está mais na equipe (desativado) → esquece o login deste celular
@@ -2008,10 +1986,6 @@ function loginPickNome(nome) {
   document.getElementById('pwInicial').value = '';
   document.getElementById('loginSelectPanel').classList.add('hidden');
   document.getElementById('pwInput').value = '';
-  // Esconder botão de reset emergencial ao abrir
-  const btnEr = document.getElementById('pwResetEmergencial');
-  if (btnEr) btnEr.classList.add('hidden');
-  document.getElementById('pwError').textContent = '';
   document.getElementById('pwError').textContent = '';
   panel.classList.remove('hidden');
   setTimeout(() => document.getElementById('pwInput').focus(), 80);
@@ -2030,16 +2004,6 @@ function voltarParaBusca() {
 function pwClearError() { document.getElementById('pwError').textContent = ''; }
 function pwKeydown(e)   { if (e.key === 'Enter') doLogin(); }
 
-// Reset emergencial: apaga senha pessoal do localStorage para usar a senha padrão do líder
-// Usado quando resetSenha:true está no cadastro E já existe senha pessoal local
-function pwResetEmergencial() {
-  const nome = loginSelectedNome;
-  if (!nome) return;
-  localStorage.removeItem('yv_pw_' + nome);
-  document.getElementById('pwError').textContent = 'Senha pessoal apagada. Digite novamente a senha do líder (YV456).';
-  const btn = document.getElementById('pwResetEmergencial');
-  if (btn) btn.classList.add('hidden');
-}
 function togglePw() {
   const inp = document.getElementById('pwInput');
   inp.type = inp.type === 'password' ? 'text' : 'password';
@@ -2053,7 +2017,6 @@ async function doLogin() {
   const errEl = document.getElementById('pwError');
   if (!pw) { errEl.textContent = 'Insira sua senha.'; return; }
   _senhaDoLogin = pw; // v2.36: usada para mandar a senha pessoal nova para a planilha
-  if (!_equipeServidorAtivo()) return _doLoginLegado(nome, pw); // planilha ainda sem a aba Equipe
   const hashDigitada = await sha256(pw);
   const pessoalLocal = localStorage.getItem('yv_pw_' + nome);
   const ehPessoalDaqui = !!pessoalLocal && hashDigitada === pessoalLocal;
@@ -2080,7 +2043,6 @@ async function doLogin() {
     const res = await API.postJson({ _action: 'equipe_login', nome, senha: pw });
     if (!res) return offline();
     if (res.status === 'ok') return _entrarAposLogin(nome, ehPessoalDaqui);
-    if (res.code === 'sem_id') return _doLoginLegado(nome, pw); // planilha ainda sem a entrada nova
     if (res.code === 'bloqueado') { errEl.textContent = 'Muitas tentativas erradas. Espere 15 minutos.'; return; }
     if (ehPessoalDaqui) {
       inicialWrap.classList.remove('hidden');
@@ -2107,50 +2069,6 @@ function _entrarAposLogin(nome, pessoal) {
   afterLogin();
 }
 
-// Conferência antiga (no celular), usada só enquanto a planilha não tem a aba Equipe
-async function _doLoginLegado(nome, pw) {
-  const hashCorreta = getSenhaHash(nome);
-  const hashDigitada = await sha256(pw);
-  // FIX v2.25: para quem tem resetSenha, a senha pessoal criada no 1º acesso era
-  // ignorada nos logins seguintes. Agora valem as duas: a do líder e a pessoal.
-  const vencida = false;
-  const hashPessoal = localStorage.getItem('yv_pw_' + nome);
-  const senhaOk = hashDigitada === hashCorreta || (!!hashPessoal && hashDigitada === hashPessoal);
-  if (!senhaOk) {
-    // Ajuda o captador a entender: se já tem senha pessoal no localStorage,
-    // a do CONFIG não vale — precisa limpar cache ou usar aba anônima
-    const temPessoal = !vencida && !!localStorage.getItem('yv_pw_' + nome);
-    // Se o cadastro tem resetSenha:true, o líder pode forçar reset de emergência
-    const cfgTodos = equipeAtual();
-    const cfg = cfgTodos.find(x => x.nome === nome);
-    const podeResetEmergencial = cfg && cfg.resetSenha;
-    const msg = temPessoal
-      ? (podeResetEmergencial
-        ? 'Senha incorreta. Você tem uma senha pessoal antiga salva. Clique em "Redefinir (usar senha do líder)" abaixo — isso limpa sua senha e usa a nova do líder.'
-        : 'Senha incorreta. Você já definiu uma senha pessoal antes — limpe o cache do navegador ou use aba anônima para redefinir.')
-      : 'Senha incorreta. Tente novamente.';
-    document.getElementById('pwError').textContent = msg;
-    // Mostrar / esconder botão de reset emergencial
-    const btn = document.getElementById('pwResetEmergencial');
-    if (btn) btn.classList.toggle('hidden', !(temPessoal && podeResetEmergencial));
-    return;
-  }
-  const todosLogin = equipeAtual();
-  captador = todosLogin.find(c => c.nome === nome);
-  _marcarLogin();
-  // Salvar login já autenticado — mesmo que vá abrir tela de criar senha depois,
-  // o app já sabe quem é (auto-login nas próximas vezes).
-  sessionStorage.setItem('yv_captador', nome);
-  try { localStorage.setItem('yv_captador', nome); } catch(e) {}
-  // Primeiro login com senha padrão → exige criação de senha pessoal
-  if (usaSenhaPadrao(nome)) {
-    abrirCriarSenha(nome);
-    return;
-  }
-  document.getElementById('screenLogin').classList.add('hidden');
-  afterLogin();
-}
-
 // — Primeiro login: criação de senha pessoal —
 function abrirCriarSenha(nome) {
   document.getElementById('criarSenhaNome').textContent = nome.split(' ')[0];
@@ -2162,14 +2080,8 @@ function abrirCriarSenha(nome) {
   setTimeout(() => document.getElementById('criarSenhaInput').focus(), 80);
 }
 
-// v2.36: a senha pessoal também vai para a planilha (vale em qualquer celular e
-// permite conferir quem gerencia a equipe). Se falhar, segue valendo neste celular.
+// A senha pessoal é gravada na planilha (quem confere a entrada é a planilha)
 let _senhaDoLogin = null;
-function _sincronizarMinhaSenha(nome, atual, nova) {
-  if (!atual || !nova || !API.ok() || !navigator.onLine) return;
-  API.postJson({ _action: 'equipe_minha_senha', nome, senhaAtual: atual, senhaNova: nova })
-    .then(r => { if (r && r.status === 'ok') _equipeGuardar(r.equipe); }).catch(() => {});
-}
 async function confirmarCriarSenha() {
   const pw1 = document.getElementById('criarSenhaInput').value;
   const pw2 = document.getElementById('criarSenhaConfirm').value;
@@ -2177,18 +2089,13 @@ async function confirmarCriarSenha() {
   if (pw1.length < 4) { errEl.textContent = 'Senha deve ter no mínimo 4 caracteres.'; return; }
   if (pw1 !== pw2)    { errEl.textContent = 'As senhas não coincidem.'; return; }
   const nome = captador.nome;
-  if (_equipeServidorAtivo()) {
-    if (!navigator.onLine) { errEl.textContent = 'Sem internet. Conecte-se para criar sua senha.'; return; }
-    if (!_senhaDoLogin) { errEl.textContent = 'Entre de novo com a senha provisória.'; return; }
-    const r = await API.postJson({ _action: 'equipe_minha_senha', nome, senhaAtual: _senhaDoLogin, senhaNova: pw1 });
-    if (!r) { errEl.textContent = 'Não consegui falar com a planilha. Tente de novo.'; return; }
-    if (r.status !== 'ok') { errEl.textContent = r.code === 'bloqueado' ? 'Muitas tentativas erradas. Espere 15 minutos.' : 'Não foi possível salvar a senha. Entre de novo com a senha provisória.'; return; }
-    _equipeGuardar(r.equipe);
-    await setSenha(nome, pw1);
-  } else {
-    await setSenha(nome, pw1);
-    _sincronizarMinhaSenha(nome, _senhaDoLogin, pw1);
-  }
+  if (!navigator.onLine) { errEl.textContent = 'Sem internet. Conecte-se para criar sua senha.'; return; }
+  if (!_senhaDoLogin) { errEl.textContent = 'Entre de novo com a senha provisória.'; return; }
+  const r = await API.postJson({ _action: 'equipe_minha_senha', nome, senhaAtual: _senhaDoLogin, senhaNova: pw1 });
+  if (!r) { errEl.textContent = 'Não consegui falar com a planilha. Tente de novo.'; return; }
+  if (r.status !== 'ok') { errEl.textContent = r.code === 'bloqueado' ? 'Muitas tentativas erradas. Espere 15 minutos.' : 'Não foi possível salvar a senha. Entre de novo com a senha provisória.'; return; }
+  _equipeGuardar(r.equipe);
+  await setSenha(nome, pw1);
   _senhaDoLogin = null;
   document.getElementById('criarSenhaPanel').classList.add('hidden');
   sessionStorage.setItem('yv_captador', nome);
@@ -2287,20 +2194,13 @@ async function doChangePw() {
   const errC = document.getElementById('pwcError');
   if (nw.length < 4) { errC.textContent = 'Nova senha deve ter pelo menos 4 caracteres.'; return; }
   if (nw !== conf)   { errC.textContent = 'As senhas não coincidem.'; return; }
-  if (_equipeServidorAtivo()) {
-    // v2.37: a planilha confere a senha atual e grava a nova
-    if (!navigator.onLine) { errC.textContent = 'Sem internet. Conecte-se para trocar a senha.'; return; }
-    const r = await API.postJson({ _action: 'equipe_minha_senha', nome: captador.nome, senhaAtual: old, senhaNova: nw });
-    if (!r) { errC.textContent = 'Não consegui falar com a planilha. Tente de novo.'; return; }
-    if (r.status !== 'ok') { errC.textContent = r.code === 'bloqueado' ? 'Muitas tentativas erradas. Espere 15 minutos.' : 'Senha atual incorreta.'; return; }
-    _equipeGuardar(r.equipe);
-    await setSenha(captador.nome, nw);
-  } else {
-    const hashOld = await sha256(old);
-    if (hashOld !== getSenhaHash(captador.nome)) { errC.textContent = 'Senha atual incorreta.'; return; }
-    await setSenha(captador.nome, nw);
-    _sincronizarMinhaSenha(captador.nome, old, nw);
-  }
+  // a planilha confere a senha atual e grava a nova
+  if (!navigator.onLine) { errC.textContent = 'Sem internet. Conecte-se para trocar a senha.'; return; }
+  const r = await API.postJson({ _action: 'equipe_minha_senha', nome: captador.nome, senhaAtual: old, senhaNova: nw });
+  if (!r) { errC.textContent = 'Não consegui falar com a planilha. Tente de novo.'; return; }
+  if (r.status !== 'ok') { errC.textContent = r.code === 'bloqueado' ? 'Muitas tentativas erradas. Espere 15 minutos.' : 'Senha atual incorreta.'; return; }
+  _equipeGuardar(r.equipe);
+  await setSenha(captador.nome, nw);
   closePwChange();
   alert('Senha alterada com sucesso!');
 }
@@ -7216,7 +7116,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.37';
+const APP_VERSAO = '2.38';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
