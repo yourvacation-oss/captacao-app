@@ -2854,7 +2854,9 @@ function _normProf(p) {
 }
 function _matchProfList(p, lista) {
   const n = _normProf(p);
-  return lista.some(item => n.startsWith(item) || n.includes(item));
+  // v2.46: os itens da lista também são normalizados (sem acento), senão "garçom", "açougueiro"
+  // e "babá" nunca batiam com a profissão digitada, que já vem sem acento
+  return lista.some(item => { const i = _normProf(item); return n.startsWith(i) || n.includes(i); });
 }
 function _checkProfSP(a, isSol) {
   const pt = a.profissaoTitular;
@@ -7294,7 +7296,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.45';
+const APP_VERSAO = '2.46';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
