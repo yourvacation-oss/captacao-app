@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════
 // Your Vacation — Qualificador de Captação
-// Google Apps Script Backend — v16
+// Google Apps Script Backend — v19
 // Cole este código em: Planilha > Extensões > Apps Script
 // Depois: Implantar > Gerenciar implantações > Editar > Nova versão > Implantar
 // ═══════════════════════════════════════════════════════
@@ -440,9 +440,13 @@ function _autenticar(cracha) {
 // Operação de uma pesquisa: pela sala; se não der (ex.: "Externo", sala digitada), pela do captador
 const _opCaptadorCache = {};
 function _opDoCaptador(nome) {
+  // v19: lê a aba Equipe uma vez só por execução (antes lia a aba inteira para cada captador)
+  if (!_opCaptadorCache.__carregado) {
+    (lerEquipe() || []).forEach(x => { _opCaptadorCache[_chaveNome(x.nome)] = x.operacao || ''; });
+    _opCaptadorCache.__carregado = true;
+  }
   const k = _chaveNome(nome);
-  if (!(k in _opCaptadorCache)) { const m = nome ? _acharMembro(nome) : null; _opCaptadorCache[k] = m ? (m.operacao || '') : ''; }
-  return _opCaptadorCache[k];
+  return k in _opCaptadorCache ? _opCaptadorCache[k] : '';
 }
 function _opDaPesquisa(sala, captador) { return SALA_OPERACAO[String(sala || '').trim()] || _opDoCaptador(captador); }
 function _podeLer(u, op, captador) {
@@ -458,15 +462,16 @@ function _podeGravar(u, op, captador) {
 // Sala e Captador de uma linha (colunas lidas uma vez por aba por execução)
 const _colunasCache = {};
 function _salaECaptador(sheet, row) {
+  // v19: lê só a linha pedida (antes lia as colunas Sala e Captador inteiras, ~25 mil linhas)
   const nome = sheet.getName();
   if (!_colunasCache[nome]) {
     const cab = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    const iS = cab.indexOf('Sala'), iC = cab.indexOf('Captador'), n = sheet.getLastRow();
-    const col = i => (i >= 0 && n >= 2) ? sheet.getRange(2, i + 1, n - 1, 1).getValues().map(r => r[0]) : [];
-    _colunasCache[nome] = { sala: col(iS), captador: col(iC) };
+    _colunasCache[nome] = { iS: cab.indexOf('Sala'), iC: cab.indexOf('Captador'), n: cab.length };
   }
   const c = _colunasCache[nome];
-  return { sala: c.sala[row - 2] || '', captador: c.captador[row - 2] || '' };
+  if (row < 2) return { sala: '', captador: '' };
+  const v = sheet.getRange(row, 1, 1, c.n).getValues()[0];
+  return { sala: c.iS >= 0 ? (v[c.iS] || '') : '', captador: c.iC >= 0 ? (v[c.iC] || '') : '' };
 }
 function _podeMarcar(u, sheet, row) { const x = _salaECaptador(sheet, row); return _podeGravar(u, _opDaPesquisa(x.sala, x.captador), x.captador); }
 
@@ -872,9 +877,9 @@ function _garantirColunaOrigem(sheet) {
   return i;
 }
 const CARGOS_SEM_SENHA_MIGRADA = ['ceo', 'lider', 'sublider', 'supervisor_adm'];
-function _senhaMigrada(m) { return !m.origem || m.origem === 'migração'; }
+function _senhaMigrada(m) { return !m.origem || m.origem === 'migração' || m.origem === 'provisória'; }
 // Gestores com a senha inicial migrada não entram nem gerenciam: precisam de redefinição pelo CEO
-function _gestorComSenhaMigrada(m) { return _senhaMigrada(m) && CARGOS_SEM_SENHA_MIGRADA.indexOf(m.cargo) >= 0; }
+function _gestorComSenhaMigrada(m) { return (!m.origem || m.origem === 'migração') && CARGOS_SEM_SENHA_MIGRADA.indexOf(m.cargo) >= 0; }
 function _registrarHistorico(por, acao, alvo, detalhe) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let h = ss.getSheetByName('Equipe-Histórico');
@@ -899,7 +904,7 @@ function _autorizarGestor(data, operacaoAlvo, cargoAlvo) {
   const c = _conferirSenha(data.por, data.porSenha);
   if (!c.ok) return c;
   const g = c.membro;
-  if (_gestorComSenhaMigrada(g)) return { ok: false, code: 'redefinir_pelo_ceo' };
+  if (_senhaMigrada(g)) return { ok: false, code: 'redefinir_pelo_ceo' }; // v17: provisória também não gerencia (precisa criar a pessoal antes)
   if (CARGOS_GESTORES.indexOf(g.cargo) < 0) return { ok: false, code: 'sem_permissao' };
   if (g.cargo !== 'ceo') {
     if (!operacaoAlvo || operacaoAlvo !== g.operacao) return { ok: false, code: 'outra_operacao' };
@@ -1184,7 +1189,30 @@ function _doGet(e, user) {
       const idx = {};
       COLUNAS.forEach(col => { idx[col] = cabecalho.indexOf(col); });
       const nCols = sheet.getLastColumn();
-      const rows = sheet.getRange(2, 1, lastRow - 1, nCols).getValues();
+      // v19: com filtro de data, lê de baixo para cima em blocos e para quando um bloco inteiro
+      // é anterior ao período (as pesquisas entram em ordem). Antes lia a aba inteira.
+      let rows;
+      const limiteInf = dateISOFiltro || dateFrom;
+      if (limiteInf && idx['Data'] >= 0) {
+        rows = [];
+        const BLOCO = 2000;
+        let fim = lastRow;
+        while (fim >= 2) {
+          const ini = Math.max(2, fim - BLOCO + 1);
+          const parte = sheet.getRange(ini, 1, fim - ini + 1, nCols).getValues();
+          let temNoPeriodo = false;
+          for (let k = 0; k < parte.length; k++) {
+            if (!parte[k][0]) continue;
+            const d = _normRowDate(parte[k][idx['Data']]);
+            if (!d || d >= limiteInf) { temNoPeriodo = true; break; }
+          }
+          rows = parte.concat(rows);
+          if (!temNoPeriodo) break;
+          fim = ini - 1;
+        }
+      } else {
+        rows = sheet.getRange(2, 1, lastRow - 1, nCols).getValues();
+      }
       rows.forEach(r => {
         if (!r[0]) return;
         // Filtro por data — dia exato ou range
@@ -1902,4 +1930,18 @@ function auditarCidadesThermas() {
     Logger.log('  ' + cid.padEnd(30) + ' ' + String(qtd).padStart(6) + '  (' + pctCid + '%)' + flag);
   });
   Logger.log('========== FIM AUDITORIA ==========');
+}
+
+// Diagnóstico (só leitura): mede o tempo de cada parte da leitura de pesquisas do mês
+function medirLeitura() {
+  const mede = (rotulo, fn) => { const a = Date.now(); const r = fn(); Logger.log(rotulo + ': ' + (Date.now() - a) + ' ms'); return r; };
+  const ceo = { nome: 'Erick Faleiro', cargo: 'ceo', operacao: '' };
+  const r = mede('CEO mês inteiro (tudo)', () => _doGet({ parameter: { dateFrom: '2026-10-01', dateTo: '2026-10-24' } }, ceo));
+  const txt = mede('gerar texto', () => r.getContent());
+  Logger.log('tamanho: ' + Math.round(txt.length / 1024) + ' KB, pesquisas: ' + JSON.parse(txt).leads.length);
+  mede('Líder SP mês', () => _doGet({ parameter: { dateFrom: '2026-10-01', dateTo: '2026-10-24' } }, { nome: 'Camila Cristina Pinto', cargo: 'lider', operacao: 'São Pedro' }));
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('São Pedro'); const n = sh.getLastRow();
+  mede('SP ID+Data (coluna inteira)', () => sh.getRange(2, 1, n - 1, 2).getValues());
+  mede('SP 3.400 linhas x todas colunas', () => sh.getRange(n - 3400, 1, 3400, sh.getLastColumn()).getValues());
+  mede('ler Equipe', () => _acharMembro('Erick Faleiro'));
 }
