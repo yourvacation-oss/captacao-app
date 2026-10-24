@@ -1,6 +1,6 @@
 // Your Vacation — Service Worker (PWA offline)
 // Estratégia: network-first com fallback cache. Ao detectar update, notifica o app para recarregar.
-const CACHE_NAME = 'yv-captacao-v45';
+const CACHE_NAME = 'yv-captacao-v46';
 const ASSETS = [
   '/captacao-app/',
   '/captacao-app/index.html',
@@ -8,6 +8,8 @@ const ASSETS = [
   '/captacao-app/icon-192.png',
   '/captacao-app/icon-512.png',
   '/captacao-app/logo-yourvacation.png',
+  '/captacao-app/foto-canastra.jpg',
+  '/captacao-app/foto-sptr.jpg',
 ];
 
 // Instalação

@@ -353,6 +353,9 @@
       text-align: center; border: 2px solid var(--border);
     }
     .result-icon    { font-size: 52px; margin-bottom: 10px; line-height: 1; }
+    /* v2.44: foto do empreendimento (Q Canastra / Q SPTR na Thermas SP) */
+    .result-foto { display: block; width: 100%; height: 196px; object-fit: cover; border-radius: 14px; margin: -4px 0 16px; }
+    .result-foto.hidden { display: none; }
     .result-verdict { font-size: 38px; font-weight: 900; letter-spacing: -1.5px; margin-bottom: 4px; }
     .result-verdict.Q       { color: var(--green); }
     .result-verdict.NQ      { color: var(--red); }
@@ -1101,6 +1104,7 @@
   <!-- RESULTADO -->
   <div class="screen" id="screenResult">
     <div class="result-card">
+      <img class="result-foto hidden" id="resFoto" alt="" width="340" height="196" />
       <div class="result-icon"    id="resIcon"></div>
       <div class="result-verdict" id="resVerdict"></div>
       <div class="result-client"  id="resClient"></div>
@@ -4005,6 +4009,12 @@ function showResult() {
   document.getElementById('resIcon').textContent   = ICON[verdict];
   const vEl = document.getElementById('resVerdict');
   vEl.textContent = selo || verdict; vEl.className = 'result-verdict ' + verdict;
+  // v2.44: foto do empreendimento só para Q Canastra / Q SPTR da Thermas SP
+  const FOTOS_SELO = { 'Q Canastra': { src: 'foto-canastra.jpg', alt: 'Empreendimento Canastra' }, 'Q SPTR': { src: 'foto-sptr.jpg', alt: 'Empreendimento SPTR' } };
+  const fEl = document.getElementById('resFoto');
+  const foto = (verdict === 'Q' && _salaEhThermasSP()) ? FOTOS_SELO[selo] : null;
+  if (foto) { fEl.src = foto.src; fEl.alt = foto.alt; fEl.classList.remove('hidden'); }
+  else { fEl.classList.add('hidden'); fEl.removeAttribute('src'); fEl.alt = ''; }
   document.getElementById('resClient').textContent = ans.nome || '';
   document.getElementById('resSub').textContent    = perfil ? (SUB[verdict] + '\n' + perfil) : SUB[verdict];
   const rEl = document.getElementById('resRule');
@@ -7282,7 +7292,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.43';
+const APP_VERSAO = '2.44';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })

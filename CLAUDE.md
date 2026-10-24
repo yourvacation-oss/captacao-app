@@ -11,6 +11,7 @@ ATENÇÃO: este repositório é PÚBLICO. Nunca registrar aqui senhas, tokens, d
 - apps-script-backend.js e _COLAR_NO_APPS_SCRIPT.txt: backend Google Apps Script (mesmo conteúdo).
 - sw.js, manifest.json, ícones: PWA.
 - logo-yourvacation.png: logo oficial usado na tela de entrada.
+- foto-canastra.jpg e foto-sptr.jpg: fotos dos empreendimentos (< 100 KB, no cache do sw.js), mostradas no topo do cartão de resultado só para Q Canastra / Q SPTR da Thermas SP (#resFoto, 196 px, cantos arredondados).
 - Hospedagem: GitHub Pages, branch main. Push na main publica em 1 a 2 min.
 
 ## Endereço do app
