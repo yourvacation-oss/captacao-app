@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════
 // Your Vacation — Qualificador de Captação
-// Google Apps Script Backend — v20
+// Google Apps Script Backend — v21
 // Cole este código em: Planilha > Extensões > Apps Script
 // Depois: Implantar > Gerenciar implantações > Editar > Nova versão > Implantar
 // ═══════════════════════════════════════════════════════
@@ -34,6 +34,8 @@ const COLUNAS = [
   'AnoCarro',
   // v2.23 — pergunta sobre apresentação de multipropriedade
   'ConheceuMultiprop',
+  // v21 — quantas multipropriedades (1, 2 ou 3mais)
+  'QtdMultiprop',
 ];
 const N_COLS  = COLUNAS.length;
 const COL_WIDTHS = [180,100,80,150,150,150,130,130,90,150,130,80,80,100,80,150,120,150,120,150,120,80,80,80,120,100,140];
@@ -695,6 +697,7 @@ function _doPost(e, user) {
       (typeof ans.anoCarro === 'number' ? ans.anoCarro : (ans.anoCarro || '')),  // AnoCarro
       // v2.23 — apresentação prévia de multipropriedade
       ans.conheceuMultiprop || '',         // ConheceuMultiprop
+      ans.qtdMultiprop || '',              // QtdMultiprop (v21)
     ]);
 
     // Aplica cor na linha recém inserida e trava formato da coluna Data como texto
@@ -1246,6 +1249,7 @@ function _doGet(e, user) {
             anoCarro:         (function(){ var v = get('AnoCarro'); if (v === '' || v == null) return null; var n = parseInt(v, 10); return isNaN(n) ? null : n; })(),
             // v2.23 — apresentação prévia de multipropriedade
             conheceuMultiprop: get('ConheceuMultiprop') || null,
+            qtdMultiprop:      String(get('QtdMultiprop') || '') || null,
           },
         });
       });

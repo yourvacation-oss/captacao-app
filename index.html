@@ -979,7 +979,7 @@
   <div class="yv-tag">YOUR VACATION</div>
   <div class="sala-pill hidden" id="salaPill">🏢 —</div>
   <div class="captador-pill" id="captadorPill" onclick="trocarCaptador()">👤 —</div>
-  <div class="mode-badge low" id="modeBadge" onclick="onModeBadgeClick()">▾ &lt;3k</div>
+  <div class="mode-badge low hidden" id="modeBadge" onclick="onModeBadgeClick()"></div>
 </div>
 
 <!-- MAIN -->
@@ -1555,7 +1555,8 @@ const CONFIG = {
     { value: '8k',        label: 'R$ 8.000 – R$ 9.999',   num: 8000  },
     { value: '10k',       label: 'R$ 10.000 – R$ 11.999', num: 10000 },
     { value: '12k',       label: 'R$ 12.000 – R$ 14.999', num: 12000 },
-    { value: '15k',       label: 'R$ 15.000 – R$ 19.999', num: 15000 },
+    { value: '15a17k',    label: 'R$ 15.000 – R$ 17.999', num: 15000 },
+    { value: '18a19k',    label: 'R$ 18.000 – R$ 19.999', num: 18000 },
     { value: '20k',       label: 'R$ 20.000 ou mais',     num: 20000 },
   ],
   faixasCarro: [
@@ -2598,7 +2599,8 @@ const QS = [
       { icon:'✅', label:'R$ 8.000 – R$ 9.999',   sub:'', value:'8k'       },
       { icon:'✅', label:'R$ 10.000 – R$ 11.999', sub:'', value:'10k'      },
       { icon:'✅', label:'R$ 12.000 – R$ 14.999', sub:'', value:'12k'      },
-      { icon:'✅', label:'R$ 15.000 – R$ 19.999', sub:'', value:'15k'      },
+      { icon:'✅', label:'R$ 15.000 – R$ 17.999', sub:'', value:'15a17k'   },
+      { icon:'✅', label:'R$ 18.000 – R$ 19.999', sub:'', value:'18a19k'   },
       { icon:'✅', label:'R$ 20.000 ou mais',     sub:'', value:'20k'      },
     ]
   },
@@ -2610,6 +2612,16 @@ const QS = [
       { icon:'❌', label:'Não',                          sub:'', value:'nao'        },
       { icon:'🏠', label:'Sim, e já sou multiproprietário', sub:'', value:'multiprop' },
       { icon:'❌', label:'Já adquiri e cancelei em outro momento', sub:'', value:'cancelou' },
+    ]
+  },
+  {
+    // v2.43: quantas multipropriedades (só para quem já é multiproprietário)
+    id:'qtdMultiprop', type:'chips', condicional: (a) => a.conheceuMultiprop === 'multiprop',
+    text:'Quantas multipropriedades vocês têm?',
+    opts:[
+      { icon:'1️⃣', label:'1',          sub:'', value:'1'     },
+      { icon:'2️⃣', label:'2',          sub:'', value:'2'     },
+      { icon:'🔢', label:'3 ou mais',  sub:'', value:'3mais' },
     ]
   },
   {
@@ -2625,11 +2637,12 @@ function getQSAtivas() {
 
 // QUALIFICAÇÃO
 function toNum(v) {
-  const m = { abaixo6k:0, '6k':6000, '8k':8000, '10k':10000, '12k':12000, '15k':15000, '20k':20000 };
+  // '15k' = faixa antiga R$15–19 mil (pesquisas até 24/10/2026)
+  const m = { abaixo6k:0, '6k':6000, '8k':8000, '10k':10000, '12k':12000, '15k':15000, '15a17k':15000, '18a19k':18000, '20k':20000 };
   return m[v] ?? 0;
 }
 function rendaStr(v) {
-  const m = { abaixo6k:'< R$6k', '6k':'R$6–7k', '8k':'R$8–9k', '10k':'R$10–11k', '12k':'R$12–14k', '15k':'R$15–19k', '20k':'R$20k+' };
+  const m = { abaixo6k:'< R$6k', '6k':'R$6–7k', '8k':'R$8–9k', '10k':'R$10–11k', '12k':'R$12–14k', '15k':'R$15–19k', '15a17k':'R$15–17k', '18a19k':'R$18–19k', '20k':'R$20k+' };
   return m[v] || v;
 }
 function carroAno(v) {
@@ -2936,7 +2949,78 @@ function calcRibeiraoPreto() {
   ]};
 }
 
+// ═══ SÃO PEDRO A PARTIR DE 25/10/2026 (v2.43) ═══
+// Pesquisas feitas antes disso seguem as regras antigas (com a escolha de movimento <3k/>3k).
+const SP_NOVAS_REGRAS_DESDE = '2026-10-25';
+function regrasNovasSP(iso) { return (iso || todayISO()) >= SP_NOVAS_REGRAS_DESDE; }
+// A escolha de movimento (<3k/>3k, alta/baixa) só existe até 24/10/2026
+function _modosDaSala(cfg) { return (!cfg || regrasNovasSP()) ? [] : (cfg.modos || []); }
+function _salaEhThermasSP() {
+  if (!salaAtual) return false;
+  if (salaAtual.id) return salaAtual.id === 'thermas-sp';
+  return _semAcento(salaAtual.nome).includes('thermas');
+}
+function _rowsCasalSP(a, extra) {
+  return [{i:'✅', l:'Relacionamento', v:_relLabel(a)}, {i:'✅', l:'Idade', v:'30–65 anos (um do casal)'}].concat(extra);
+}
 function calcSaoPedro() {
+  if (regrasNovasSP()) return calcSaoPedro2026();
+  return _calcSaoPedroAteOutubro();
+}
+function calcSaoPedro2026() {
+  const a = ans;
+  const { rNum, isSol, isNoivos, relOk, idOk, casaS } = _base(a);
+  if (isNoivos) return _nqNoivos();
+  const _profNQ = _checkProfSP(a, isSol);
+  if (_profNQ) return _profNQ;
+  if (isSol) return { verdict:'NQ', perfil:null, rule:null, rows:[
+    {i:'🚫', l:'Perfil', v:'Solteiro / Divorciado — não elegível em São Pedro'},
+  ]};
+  if (!relOk || !idOk) return { verdict:'NQ', perfil:null, rule:null, rows:[
+    _row(relOk, 'Relacionamento', relOk ? _relLabel(a) : 'Casado ou UE ≥1 ano'),
+    _row(idOk,  'Idade',          idOk  ? '30–65 anos (um do casal)' : 'Um do casal com 30–65 anos'),
+  ]};
+  // SPTR e Externo SP: casal segue a regra de "menos de 3 mil"
+  if (!_salaEhThermasSP()) {
+    const salvo = mode; mode = 'low';
+    try { return _calcSaoPedroAteOutubro(); } finally { mode = salvo; }
+  }
+  // Thermas SP — sem exigir cartão. Ano exato do carro (a faixa não serve para o corte de 2015).
+  const ano = (typeof a.anoCarro === 'number') ? a.anoCarro : carroAno(a.carro);
+  const Q = (selo, perfil, rows) => ({ verdict:'Q', selo, perfil, rule:null, rows: _rowsCasalSP(a, rows) });
+  if (a.conheceuMultiprop === 'multiprop') {
+    const qtd = a.qtdMultiprop || '1';
+    const qtdLbl = qtd === '3mais' ? '3 ou mais' : qtd;
+    if (qtd === '3mais') return { verdict:'NQ', perfil:null, rule:'💡 Pode convidar sem brinde.', rows:[
+      {i:'⚠️', l:'Multipropriedade', v:'3 ou mais — NQ'},
+    ]};
+    const lim = qtd === '2' ? { can: 20000, sptr: 18000 } : { can: 18000, sptr: 15000 };
+    const linhas = [{i:'✅', l:'Multipropriedade', v:qtdLbl}, {i:'✅', l:'Renda', v:rendaStr(a.renda)}, {i:'➞', l:'Veículo e casa', v:'Dispensados (multiproprietário)'}];
+    if (rNum >= lim.can)  return Q('Q Canastra', 'Casal multiproprietário (' + qtdLbl + ') — Thermas SP', linhas);
+    if (rNum >= lim.sptr) return Q('Q SPTR',     'Casal multiproprietário (' + qtdLbl + ') — Thermas SP', linhas);
+    return { verdict:'NQ', perfil:null, rule:null, rows:[
+      {i:'✅', l:'Multipropriedade', v:qtdLbl},
+      {i:'⚠️', l:'Renda', v:'Mínimo R$' + (lim.sptr / 1000) + ' mil com ' + qtdLbl + ' multipropriedade' + (qtd === '1' ? '' : 's')},
+    ]};
+  }
+  // Não multiproprietário: Q Canastra tem prioridade quando encaixa nos dois
+  if (rNum >= 15000 && ano >= 2010) return Q('Q Canastra', 'Casal — Thermas SP (R$15k+)', [
+    {i:'✅', l:'Renda', v:rendaStr(a.renda)}, {i:'✅', l:'Veículo', v:'2010+'},
+  ]);
+  if (ano >= 2015 && rNum >= 10000 && casaS) return Q('Q SPTR', 'Casal — Thermas SP (R$10k+, casa própria)', [
+    {i:'✅', l:'Renda', v:rendaStr(a.renda)}, {i:'✅', l:'Veículo', v:'2015+'}, {i:'✅', l:'Casa própria', v:'Sim'},
+  ]);
+  if (ano >= 2015 && rNum >= 12000) return Q('Q SPTR', 'Casal — Thermas SP (R$12k+)', [
+    {i:'✅', l:'Renda', v:rendaStr(a.renda)}, {i:'✅', l:'Veículo', v:'2015+'},
+  ]);
+  return { verdict:'NQ', perfil:null, rule:null, rows:[
+    _row(rNum >= 10000, 'Renda',   rNum >= 10000 ? rendaStr(a.renda) : 'Mínimo R$10.000'),
+    _row(ano >= 2015 || (rNum >= 15000 && ano >= 2010), 'Veículo', ano >= 2015 ? '2015+' : (rNum >= 15000 ? 'Mínimo 2010' : 'Mínimo 2015')),
+    _row(casaS || rNum >= 12000, 'Casa própria', casaS ? 'Sim' : 'Exigida abaixo de R$12k'),
+  ]};
+}
+// Regras de São Pedro até 24/10/2026 (com <3k/>3k). Usadas também pela SPTR/Externo SP depois (modo <3k).
+function _calcSaoPedroAteOutubro() {
   const a = ans;
   const { rNum, cAno, isSol, isNoivos, relOk, idOk, cartaoS, casaS } = _base(a);
   const hi = mode === 'high';
@@ -3262,9 +3346,9 @@ function iniciarQuizComSala() {
   const pill = document.getElementById('salaPill');
   pill.textContent = '🏢 ' + salaAtual.nome;
   pill.classList.remove('hidden');
-  // Salas com modos mostram tela de seleção de modo
+  // Salas com modos mostram tela de seleção de modo (só até 24/10/2026)
   const salaCfg = CONFIG.salas.find(s => s.id === salaAtual.id);
-  if (salaCfg && salaCfg.modos.length > 0) {
+  if (salaCfg && _modosDaSala(salaCfg).length > 0) {
     renderModoScreen(salaCfg);
     hideAll(); show('screenModo');
   } else {
@@ -3320,7 +3404,7 @@ function atualizarModoBadge() {
   const b = document.getElementById('modeBadge');
   if (!salaAtual) { b.textContent = ''; b.className = 'mode-badge low hidden'; return; }
   const salaCfg = CONFIG.salas.find(s => s.id === salaAtual.id);
-  if (!salaCfg || salaCfg.modos.length === 0) { b.classList.add('hidden'); return; }
+  if (!salaCfg || _modosDaSala(salaCfg).length === 0) { b.classList.add('hidden'); return; }
   b.classList.remove('hidden');
   if (salaCfg.modos.includes('baixa') || salaCfg.modos.includes('alta')) {
     b.textContent = mode === 'low' ? '▾ Baixa' : '▾ Alta';
@@ -3363,7 +3447,7 @@ function startQuiz() {
     const pill = document.getElementById('salaPill');
     pill.textContent = '🏢 ' + salaAtual.nome;
     pill.classList.remove('hidden');
-    if (salaCfg && salaCfg.modos.length > 0) {
+    if (salaCfg && _modosDaSala(salaCfg).length > 0) {
       renderModoScreen(salaCfg);
       hideAll(); show('screenModo');
     } else {
@@ -3813,7 +3897,7 @@ function _buildLeadObject(leadId, verdict, iso, isPartial) {
     renda:    ans.renda  || '—',
     cidade:   ans.cidade || '—',
     modalidade: ans.modalidade || null,
-    mode:     mode==='low'?'<3k':'>3k',
+    mode:     regrasNovasSP() ? '—' : (mode==='low'?'<3k':'>3k'), // v2.43: sem escolha de movimento
     sala:     salaAtual ? salaDigitadaCanon(salaAtual.nome) : '—',
     pontoCaptacao: (salaAtual && salaAtual.digitado) || null,
     captador: captador  ? captador.nome  : '—',
@@ -3834,6 +3918,7 @@ function _buildLeadObject(leadId, verdict, iso, isPartial) {
       anoCarro:          (typeof ans.anoCarro === 'number') ? ans.anoCarro : null,
       apartamento:        ans.apto              || null,
       conheceuMultiprop:  ans.conheceuMultiprop || null,
+      qtdMultiprop:       ans.conheceuMultiprop === 'multiprop' ? (ans.qtdMultiprop || null) : null,
     },
   };
 }
@@ -3910,7 +3995,7 @@ function _persistLead() {
 
 function showResult() {
   _persistLead(); // salva imediatamente ao chegar na tela
-  const { verdict, rows, rule, perfil } = calcResult();
+  const { verdict, rows, rule, perfil, selo } = calcResult();
   const ICON = { Q:'🟢', NQ:'🔴', PARCIAL:'🟡' };
   const SUB  = {
     Q:'Qualificado — pode convidar para a sala de vendas.',
@@ -3919,7 +4004,7 @@ function showResult() {
   };
   document.getElementById('resIcon').textContent   = ICON[verdict];
   const vEl = document.getElementById('resVerdict');
-  vEl.textContent = verdict; vEl.className = 'result-verdict ' + verdict;
+  vEl.textContent = selo || verdict; vEl.className = 'result-verdict ' + verdict;
   document.getElementById('resClient').textContent = ans.nome || '';
   document.getElementById('resSub').textContent    = perfil ? (SUB[verdict] + '\n' + perfil) : SUB[verdict];
   const rEl = document.getElementById('resRule');
@@ -3936,7 +4021,7 @@ function showResult() {
 
   // Bloco de respostas completas para print/WhatsApp
   const TIPO_LABEL = { casados:'Casal casado', uniao:'União estável', noivos:'Noivos/Namorados', solteiro:'Solteiro/Divorciado' };
-  const RENDA_LABEL = { abaixo6k:'Abaixo de R$ 6.000', '6k':'R$ 6.000 – R$ 7.999', '8k':'R$ 8.000 – R$ 9.999', '10k':'R$ 10.000 – R$ 11.999', '12k':'R$ 12.000 – R$ 14.999', '15k':'R$ 15.000 – R$ 19.999', '20k':'R$ 20.000 ou mais' };
+  const RENDA_LABEL = { abaixo6k:'Abaixo de R$ 6.000', '6k':'R$ 6.000 – R$ 7.999', '8k':'R$ 8.000 – R$ 9.999', '10k':'R$ 10.000 – R$ 11.999', '12k':'R$ 12.000 – R$ 14.999', '15k':'R$ 15.000 – R$ 19.999', '15a17k':'R$ 15.000 – R$ 17.999', '18a19k':'R$ 18.000 – R$ 19.999', '20k':'R$ 20.000 ou mais' };
   const CARRO_LABEL = { sem:'Sem carro', ate2009:'Até 2009', '2010a2013':'2010 a 2013', '2014a2020':'2014 a 2020', '2021mais':'2021 ou acima', '2014mais':'2014 ou mais recente' };
   const TEMPO_LABEL = { menos1ano:'Menos de 1 ano', '1anoMais':'1 ano ou mais' };
   const telFmt = (t) => {
@@ -3974,6 +4059,8 @@ function showResult() {
     { label: 'Viagens/ano', val: VIAGENS_LABEL[ans.viagens] || ans.viagens || '—' },
     { label: 'Renda',       val: RENDA_LABEL[ans.renda] || ans.renda || '—' },
   );
+  if (ans.conheceuMultiprop === 'multiprop')
+    respItems.push({ label: 'Multipropriedades', val: ans.qtdMultiprop === '3mais' ? '3 ou mais' : (ans.qtdMultiprop || '—') });
 
   const rr = document.getElementById('resRespostas');
   rr.innerHTML = '<div class="rbd-title">Respostas do casal</div>';
@@ -4448,7 +4535,7 @@ function executarExport() {
   };
   const RENDA_LABEL = {
     abaixo10k:'< R$10.000', '10k':'R$10.000–11.999', '12k':'R$12.000–14.999',
-    '15k':'R$15.000–19.999', '20k':'R$20.000+',
+    '15k':'R$15.000–19.999', '15a17k':'R$15.000–17.999', '18a19k':'R$18.000–19.999', '20k':'R$20.000+',
   };
   const cabecalho = ['Nome','Telefone','Resultado','Perfil','Renda','Modo','Sala','Captador','Hora','Data'];
   const linhas = fonte.map(l => [
@@ -7195,7 +7282,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.42';
+const APP_VERSAO = '2.43';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
