@@ -4015,6 +4015,8 @@ function showResult() {
   const foto = (verdict === 'Q' && _salaEhThermasSP()) ? FOTOS_SELO[selo] : null;
   if (foto) { fEl.src = foto.src; fEl.alt = foto.alt; fEl.classList.remove('hidden'); }
   else { fEl.classList.add('hidden'); fEl.removeAttribute('src'); fEl.alt = ''; }
+  // v2.45: com a foto, o ícone 🟢 some; nos outros resultados continua
+  document.getElementById('resIcon').style.display = foto ? 'none' : '';
   document.getElementById('resClient').textContent = ans.nome || '';
   document.getElementById('resSub').textContent    = perfil ? (SUB[verdict] + '\n' + perfil) : SUB[verdict];
   const rEl = document.getElementById('resRule');
@@ -7292,7 +7294,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.44';
+const APP_VERSAO = '2.45';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
