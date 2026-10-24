@@ -1649,25 +1649,30 @@ const API = {
   }
 };
 
-// Captadores com sala fixa SPTR (leads antigos com "São Pedro Resort" → SPTR)
+// Captadores com sala fixa SPTR
 const CAPTADORES_SPTR = new Set([
   'Bruno Moisés', 'Mayra Teixeira', 'José Heraldo', 'Lucas Marotti',
 ]);
 // Nomes antigos de São Pedro que precisam ser migrados para o nome correto por captador
+// ("São Pedro Resort" e "SP Resort" não entram aqui: são sempre SPTR, ver SALA_ALIAS_DIRETO)
 const SALAS_SP_ANTIGAS = new Set([
-  'São Pedro Resort', 'Thermas São Pedro', 'THERMAS SÃO PEDRO',
-  'THERMAS SÃO PEDRO - HOTEL', 'Thermas - UH AP', 'SP Resort',
+  'Thermas São Pedro', 'THERMAS SÃO PEDRO',
+  'THERMAS SÃO PEDRO - HOTEL', 'Thermas - UH AP',
 ]);
 // Nomes antigos de outros hotéis (mapeamento direto, sem ambiguidade)
 const SALA_ALIAS_DIRETO = {
   'Atibaia':    'Porta da sala',
   'São Pedro':  'SPTR',  // nome de aba legado → sala correta
+  'São Pedro Resort': 'SPTR', // v2.42: sempre SPTR, para qualquer captador
+  'SP Resort':  'SPTR',
 };
 // FIX v2.29: sala digitada como "São Pedro" (com ou sem acento, maiúscula ou espaço) é a SPTR
+// v2.42: "São Pedro Resort" e "SP Resort" também são sempre SPTR
+const SALAS_SEMPRE_SPTR = ['sao pedro', 'sao pedro resort', 'sp resort'];
 function salaDigitadaCanon(nome) {
   const n = String(nome || '').trim();
   const k = n.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ');
-  return k === 'sao pedro' ? 'SPTR' : n;
+  return SALAS_SEMPRE_SPTR.includes(k) ? 'SPTR' : n;
 }
 
 // v2.30: hotel de Caldas Novas digitado em "Outra sala" usa a sala Externo (regra de Caldas).
@@ -7190,7 +7195,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.41';
+const APP_VERSAO = '2.42';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })

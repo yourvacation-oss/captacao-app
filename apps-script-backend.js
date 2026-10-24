@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════
 // Your Vacation — Qualificador de Captação
-// Google Apps Script Backend — v19
+// Google Apps Script Backend — v20
 // Cole este código em: Planilha > Extensões > Apps Script
 // Depois: Implantar > Gerenciar implantações > Editar > Nova versão > Implantar
 // ═══════════════════════════════════════════════════════
@@ -1862,6 +1862,37 @@ function _corrigirSalaSaoPedro(aplicar) {
       vals.forEach(v => {
         if (v[0] !== '' && v[0] !== 'SPTR' && normalizarSalaDigitada(v[0]) === 'SPTR') { v[0] = 'SPTR'; n++; }
       });
+      if (n > 0) {
+        resumo[sheet.getName() + ' / ' + col] = n;
+        if (aplicar) range.setValues(vals);
+      }
+    });
+  });
+  Logger.log((aplicar ? 'CORRIGIDO' : 'SIMULAÇÃO (nada alterado)') + ': ' + JSON.stringify(resumo));
+  return resumo;
+}
+
+// ── CORREÇÃO ÚNICA (v20): Sala "São Pedro Resort" / "SP Resort" → "SPTR" ──
+// Antes, faça backup da planilha. 1º rode simularSaoPedroResortParaSPTR (só conta, não altera).
+// Depois rode corrigirSaoPedroResortParaSPTR. Altera só as colunas Sala e PontoCaptacao das abas
+// de pesquisas (não mexe no DDP nem na Equipe). Aceita acento/maiúscula/espaço. Pode rodar de novo sem risco.
+function simularSaoPedroResortParaSPTR() { return _corrigirSaoPedroResort(false); }
+function corrigirSaoPedroResortParaSPTR() { return _corrigirSaoPedroResort(true); }
+function _corrigirSaoPedroResort(aplicar) {
+  const alvos = ['sao pedro resort', 'sp resort'];
+  const chave = v => String(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const resumo = {};
+  abasDePesquisas().forEach(sheet => {
+    const last = sheet.getLastRow();
+    if (last < 2) return;
+    const cabecalho = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    ['Sala', 'PontoCaptacao'].forEach(col => {
+      const i = cabecalho.indexOf(col);
+      if (i < 0) return;
+      const range = sheet.getRange(2, i + 1, last - 1, 1);
+      const vals = range.getValues();
+      let n = 0;
+      vals.forEach(v => { if (v[0] !== '' && alvos.indexOf(chave(v[0])) >= 0) { v[0] = 'SPTR'; n++; } });
       if (n > 0) {
         resumo[sheet.getName() + ' / ' + col] = n;
         if (aplicar) range.setValues(vals);
