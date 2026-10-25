@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════
 // Your Vacation — Qualificador de Captação
-// Google Apps Script Backend — v25
+// Google Apps Script Backend — v26
 // Cole este código em: Planilha > Extensões > Apps Script
 // Depois: Implantar > Gerenciar implantações > Editar > Nova versão > Implantar
 // ═══════════════════════════════════════════════════════
@@ -408,7 +408,8 @@ function _b64url(bytesOuTexto) { return Utilities.base64EncodeWebSafe(bytesOuTex
 function _assinarCracha(corpo) { return _b64url(Utilities.computeHmacSha256Signature(corpo, _segredoCracha())); }
 function emitirCracha(m) {
   const agora = Date.now();
-  const corpo = _b64url(JSON.stringify({ n: m.nome, c: m.cargo, o: m.operacao || '', iat: agora, exp: agora + CRACHA_VALIDADE_MS }));
+  // v26: UTF-8 explícito — sem isso nomes com acento viravam "?" e o crachá era recusado
+  const corpo = Utilities.base64EncodeWebSafe(JSON.stringify({ n: m.nome, c: m.cargo, o: m.operacao || '', iat: agora, exp: agora + CRACHA_VALIDADE_MS }), Utilities.Charset.UTF_8).replace(/=+$/, '');
   return corpo + '.' + _assinarCracha(corpo);
 }
 function _iguais(a, b) { // comparação de tempo constante
@@ -425,7 +426,7 @@ function lerCracha(cracha) {
   let p;
   try {
     const pad = partes[0] + '==='.slice((partes[0].length + 3) % 4);
-    p = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(pad)).getDataAsString());
+    p = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(pad)).getDataAsString('UTF-8'));
   } catch (e) { return null; }
   if (!p || !p.n || !p.exp || Date.now() > p.exp) return null;
   const m = _acharMembro(p.n);
@@ -447,7 +448,7 @@ function _nomeDoCrachaSemConferir(cracha) {
   try {
     const t = String(cracha || '').split('.')[0];
     if (!t) return '';
-    const p = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(t + '==='.slice((t.length + 3) % 4))).getDataAsString());
+    const p = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(t + '==='.slice((t.length + 3) % 4))).getDataAsString('UTF-8'));
     return p && p.n ? String(p.n) : '';
   } catch (e) { return ''; }
 }
@@ -481,7 +482,8 @@ function _registrarRecusa(d, code) {
     const linhas = n > 0 ? sh.getRange(ini, 1, sh.getLastRow() - ini + 1, RECUSADOS_COLUNAS.length).getValues() : [];
     for (let i = linhas.length - 1; i >= 0; i--) {
       const l = linhas[i];
-      if (String(l[0]) === hoje && l[1] === nome && l[2] === motivo) {
+      // v26: o Sheets pode devolver a data como objeto Date; compara sempre como AAAA-MM-DD
+      if (_dataISO(l[0]) === hoje && String(l[1]).trim() === nome && String(l[2]).trim() === motivo) {
         const vistos = String(l[8] || '').split(',').filter(Boolean);
         ids.forEach(x => { if (vistos.indexOf(x) < 0 && vistos.length < 2000) vistos.push(x); });
         const qtd = Math.max(Number(l[3]) || 0, vistos.length || (Number(l[3]) || 0) + (ids.length ? 0 : 1));
