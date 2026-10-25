@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════
 // Your Vacation — Qualificador de Captação
-// Google Apps Script Backend — v22
+// Google Apps Script Backend — v23
 // Cole este código em: Planilha > Extensões > Apps Script
 // Depois: Implantar > Gerenciar implantações > Editar > Nova versão > Implantar
 // ═══════════════════════════════════════════════════════
@@ -625,6 +625,7 @@ function _doPost(e, user) {
     if (data._action === 'equipe_redefinir')  return equipeRedefinirSenha(data);
     if (data._action === 'equipe_desativar')  return equipeDesativar(data);
     if (data._action === 'equipe_minha_senha') return equipeMinhaSenha(data);
+    if (data._action === 'equipe_inicio_penetracao') return equipeInicioPenetracao(data); // v23
 
     // update_sala: atualiza EmSala, TipoSala e Venda de um lead existente
     if (data._action === 'update_sala') {
@@ -801,6 +802,8 @@ function desativarChaveLeads() {
 // e guarda uma cópia no celular. Nunca apagar linhas: desativar = Ativo NÃO.
 const EQUIPE_SHEET = 'Equipe';
 const EQUIPE_COLUNAS = ['Nome','Cargo','Operacao','Sala','SenhaHash','Ativo','ResetEm','CriadoPor','CriadoEm','SenhaOrigem'];
+// v23: coluna extra InicioPenetracao (AAAA-MM-DD; vazio = conta todo o período), criada sozinha na primeira gravação
+const COL_INICIO_PEN = 'InicioPenetracao';
 // SenhaOrigem: 'migração' (senha inicial migrada do app; vazio conta como migração), 'pessoal' (criada pela pessoa) ou 'redefinida' (pelo líder/CEO)
 const APP_URL_INDEX = 'https://yourvacation-oss.github.io/captacao-app/index.html';
 
@@ -816,6 +819,7 @@ function lerEquipe() {
   const cab = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   const ix = {}; EQUIPE_COLUNAS.forEach(c => { ix[c] = cab.indexOf(c); });
   const g = (r, c) => ix[c] >= 0 ? r[ix[c]] : '';
+  const iPen = cab.indexOf(COL_INICIO_PEN);
   return sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues()
     .filter(r => String(g(r, 'Nome')).trim())
     .map(r => ({
@@ -824,6 +828,7 @@ function lerEquipe() {
       operacao:  String(g(r, 'Operacao')).trim() || null,
       sala:      String(g(r, 'Sala')).trim() || null,
       ativo:     String(g(r, 'Ativo')).trim().toUpperCase() !== 'NÃO' && String(g(r, 'Ativo')).trim().toUpperCase() !== 'NAO',
+      inicioPenetracao: iPen >= 0 ? _dataISO(r[iPen]) : '',
     }));
 }
 
@@ -912,11 +917,21 @@ function _gravar(m, col, valor) {
   if (m.ix[col] >= 0) m.sheet.getRange(m.linha, m.ix[col] + 1).setValue(valor);
 }
 // Cria a coluna SenhaOrigem na aba Equipe se ainda não existir; devolve o índice (0-based)
-function _garantirColunaOrigem(sheet) {
+function _garantirColunaOrigem(sheet) { return _garantirColuna(sheet, 'SenhaOrigem'); }
+function _garantirColuna(sheet, nome) {
   const cab = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  let i = cab.indexOf('SenhaOrigem');
-  if (i < 0) { i = cab.filter(String).length; sheet.getRange(1, i + 1).setValue('SenhaOrigem'); }
+  let i = cab.indexOf(nome);
+  if (i < 0) { i = cab.filter(String).length; sheet.getRange(1, i + 1).setValue(nome); }
   return i;
+}
+// Data da planilha (texto AAAA-MM-DD ou objeto Date) → 'AAAA-MM-DD'; inválida → ''
+function _dataISO(v) {
+  if (!v) return '';
+  if (Object.prototype.toString.call(v) === '[object Date]') return isNaN(v) ? '' : Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  const t = String(v).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  const m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return m ? m[3] + '-' + m[2] + '-' + m[1] : '';
 }
 const CARGOS_SEM_SENHA_MIGRADA = ['ceo', 'lider', 'sublider', 'supervisor_adm'];
 function _senhaMigrada(m) { return !m.origem || m.origem === 'migração' || m.origem === 'provisória'; }
@@ -1021,6 +1036,22 @@ function equipeMinhaSenha(data) {
   _gravar(c.membro, 'SenhaOrigem', 'pessoal');
   _registrarHistorico(c.membro.nome, 'trocar a própria senha', c.membro.nome, '');
   return _respostaEquipe({ cracha: emitirCracha(_acharMembro(c.membro.nome)) });
+}
+
+// v23: líder/sublíder (da operação) ou CEO define a partir de quando conta a penetração individual
+function equipeInicioPenetracao(data) {
+  const inicio = String(data.inicio || '').trim();
+  if (inicio && !/^\d{4}-\d{2}-\d{2}$/.test(inicio)) return jsonResponse({ status: 'error', code: 'data_invalida' });
+  const alvo = _acharMembro(data.nome);
+  if (!alvo) return jsonResponse({ status: 'error', code: 'nao_encontrado' });
+  const a = _autorizarGestor(data, alvo.operacao, alvo.cargo);
+  if (!a.ok) return jsonResponse({ status: 'error', code: a.code });
+  const i = _garantirColuna(alvo.sheet, COL_INICIO_PEN);
+  const cel = alvo.sheet.getRange(alvo.linha, i + 1);
+  cel.setNumberFormat('@STRING@'); // texto: o Sheets não converte para data
+  cel.setValue(inicio);
+  _registrarHistorico(a.gestor.nome, 'início da penetração', alvo.nome, inicio || 'todo o período');
+  return _respostaEquipe();
 }
 
 // RODAR UMA VEZ (Apps Script > Executar) antes de usar a v16: cria a coluna SenhaOrigem e

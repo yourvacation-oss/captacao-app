@@ -636,6 +636,46 @@
     .modal-check-row input[type=checkbox] { width: 18px; height: 18px; cursor: pointer; accent-color: var(--gold); }
     /* ── DDP ── */
     .ddp-wrap { padding: 14px 14px 100px; }
+    /* Penetração individual (v2.47) */
+    .pen-wrap { padding: 16px 16px 100px; }
+    .pen-titulo { font-size: 22px; font-weight: 700; color: var(--text); }
+    .pen-sub { font-size: 13px; color: var(--muted); margin: 2px 0 14px; }
+    .pen-seg { display: flex; background: var(--navy2); border: 1px solid var(--border); border-radius: 12px; padding: 4px; gap: 4px; }
+    .pen-seg button { flex: 1; min-height: 40px; border: none; border-radius: 9px; background: none; color: var(--muted); font: 600 14px inherit; font-family: inherit; cursor: pointer; }
+    .pen-seg button.on { background: var(--gold); color: var(--navy); }
+    .pen-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+    .pen-chips button { min-height: 36px; padding: 0 12px; border-radius: 18px; border: 1px solid var(--border); background: var(--navy2); color: var(--muted); font: 600 13px inherit; font-family: inherit; cursor: pointer; }
+    .pen-chips button.on { border-color: var(--gold); color: var(--gold); }
+    .pen-per { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0 4px; }
+    .pen-seta { width: 44px; height: 44px; flex-shrink: 0; border-radius: 12px; border: 1px solid var(--border); background: var(--navy2); color: var(--gold); font-size: 22px; cursor: pointer; font-family: inherit; }
+    .pen-seta:disabled { opacity: .3; cursor: default; }
+    .pen-per-lbl { text-align: center; font-size: 15px; font-weight: 600; color: var(--text); }
+    .pen-per-sub { display: block; font-size: 11px; font-weight: 500; color: var(--muted); margin-top: 2px; }
+    .pen-desde { text-align: center; font-size: 12px; color: var(--gold); margin: 2px 0 8px; }
+    .pen-hero { background: var(--navy2); border: 2px solid var(--gold); border-radius: 16px; padding: 18px; text-align: center; margin-top: 10px; }
+    .pen-rot { font-size: 11px; font-weight: 700; letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
+    .pen-big { font-size: 52px; font-weight: 700; color: var(--gold); line-height: 1.1; margin: 4px 0; }
+    .pen-conta { font-size: 13px; color: var(--muted); }
+    .pen-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .pen-card { background: var(--navy2); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+    .pen-mid { font-size: 28px; font-weight: 700; color: var(--text); margin: 4px 0 2px; }
+    .pen-linha { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--border); font-size: 14px; color: var(--text); }
+    .pen-linha:first-of-type { border-top: none; }
+    .pen-linha b { color: var(--gold); }
+    .pen-linha small { color: var(--muted); font-size: 12px; margin-left: 6px; }
+    .pen-aviso { font-size: 12px; color: var(--muted); text-align: center; margin-top: 10px; }
+    .pen-topo { display: flex; gap: 8px; align-items: center; }
+    .pen-topo select { min-height: 48px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--navy2); color: var(--gold); font: 600 15px inherit; font-family: inherit; }
+    .pen-topo .pen-seg { flex: 1; }
+    .pen-tab { background: var(--navy2); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; margin-top: 10px; }
+    .pen-tr { display: grid; grid-template-columns: 1.6fr .8fr 1fr 1fr 1fr; align-items: center; padding: 10px 12px; border-top: 1px solid var(--border); font-size: 13px; color: var(--text); text-align: center; }
+    .pen-tr > :first-child { text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pen-tr small { display: block; font-size: 10px; color: var(--gold); white-space: nowrap; }
+    .pen-tr .t { color: var(--gold); font-weight: 700; }
+    .pen-th { border-top: none; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .pen-eq { background: var(--navy3); font-weight: 700; }
+    .eq-pen { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 8px; font-size: 12px; color: var(--muted); }
+    .eq-pen input { min-height: 32px; border-radius: 8px; border: 1px solid var(--border); background: var(--navy); color: var(--text); padding: 0 8px; font-family: inherit; font-size: 13px; }
     .ddp-hd { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
     .ddp-hd-left .ddp-title { font-size:16px; font-weight:800; color:var(--gold); }
     .ddp-hd-left .ddp-sub   { font-size:11px; color:var(--muted); margin-top:1px; }
@@ -1195,6 +1235,11 @@
 
 </div>
 
+<!-- TELA MINHA PENETRAÇÃO (captador) -->
+<div class="screen" id="screenPen">
+  <div class="pen-wrap" id="penWrap"></div>
+</div>
+
 <!-- TELA DDP -->
 <div class="screen" id="screenDdp">
   <div class="ddp-wrap" id="ddpWrap"></div>
@@ -1213,6 +1258,9 @@
   </div>
   <div class="nav-btn" id="navCdp" onclick="goTo('cdp')">
     <div class="nav-icon">📊</div><span class="nav-label">CDP</span>
+  </div>
+  <div class="nav-btn hidden" id="navPen" onclick="goTo('pen')">
+    <div class="nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="vertical-align:-3px"><path d="M19 5L5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></div><span class="nav-label">Minha penetração</span>
   </div>
   <div class="nav-btn hidden" id="navTimeRange" onclick="goTo('timerange')">
     <div class="nav-icon">⏱️</div><span class="nav-label">Time Range</span>
@@ -1825,6 +1873,7 @@ function equipeAtual() {
   const ativos = central.filter(m => m.ativo).map(m => ({
     nome: m.nome, cargo: m.cargo || 'captador', operacao: m.operacao || null,
     ...(m.sala ? { sala: m.sala } : {}),
+    ...(m.inicioPenetracao ? { inicioPenetracao: m.inicioPenetracao } : {}),
   }));
   const nomes = new Set(central.map(m => m.nome)); // desativado na planilha não volta pelos extras
   return [...ativos, ...extras.filter(x => !nomes.has(x.nome))];
@@ -2198,6 +2247,9 @@ function afterLogin() {
   const temDdp = isLider && (captador.cargo === 'ceo' || captador.operacao !== null);
   if (temDdp) navDD.classList.remove('hidden');
   else navDD.classList.add('hidden');
+  // v2.47: captador de operação com hotel de penetração vê "Minha penetração"
+  const temPen = captador.cargo === 'captador' && _penHoteisDaOp(captador.operacao).length > 0;
+  document.getElementById('navPen').classList.toggle('hidden', !temPen);
   // Restaurar a aba onde o usuário estava antes do reload
   const savedTab = sessionStorage.getItem('yv_tab') || 'home';
   goTo(savedTab);
@@ -2534,11 +2586,11 @@ const QS = [
     id:'modalidade', type:'chips',
     condicional: () => {
       // Só faz sentido perguntar modalidade nos hotéis que têm DDP
-      // (Atrium, Marina, Alta Vista, SPTR). NÃO perguntar em:
+      // (Atrium, Marina, Alta Vista, Toulon, SPTR). NÃO perguntar em:
       // - Thermas SP / Externo CN / Externo SP (cliente pode nem estar hospedado)
       // - Pontos de Atibaia (Porta da sala, Vest Casa, Entrada/Corredor Outlet)
       const s = (salaAtual && salaAtual.nome) ? salaAtual.nome.toUpperCase() : '';
-      return s === 'ATRIUM' || s === 'MARINA' || s === 'ALTA VISTA' || s === 'SPTR';
+      return s === 'ATRIUM' || s === 'MARINA' || s === 'ALTA VISTA' || s === 'TOULON' || s === 'SPTR';
     },
     text:'Estão hospedados em qual modalidade?',
     opts:[
@@ -3244,7 +3296,7 @@ function show(id) {
   document.getElementById('main').scrollTop = 0;
 }
 function setNav(tab) {
-  ['Home','New','Hist','Cdp','TimeRange','Ddp','Equipe'].forEach(t => {
+  ['Home','New','Hist','Cdp','Pen','TimeRange','Ddp','Equipe'].forEach(t => {
     const el = document.getElementById('nav'+t);
     if (el) el.classList.remove('active');
   });
@@ -3275,6 +3327,7 @@ function goTo(tab) {
   else if (tab==='timerange') showTimeRange();
   else if (tab==='ddp')       showDdp();
   else if (tab==='equipe')    showEquipe();
+  else if (tab==='pen')       showPen();
 }
 function goHome() { goTo('home'); }
 function onModeBadgeClick() {
@@ -5417,9 +5470,10 @@ function ddpSheetsLoad(hotel) {
           }
         });
         // Re-renderiza para refletir os dados recém-chegados
-        if (document.getElementById('screenDdp') && !document.getElementById('screenDdp').classList.contains('hidden')) {
+        if (document.getElementById('screenDdp') && document.getElementById('screenDdp').classList.contains('active')) {
           renderDdp();
         }
+        _penAoChegar();
       }
     })
     .catch(() => {})
@@ -5922,6 +5976,9 @@ function renderDdp() {
       </div>
     </div>
 
+    <!-- PENETRAÇÃO INDIVIDUAL (v2.47) -->
+    <div id="ddpPenInd"></div>
+
     <!-- HISTÓRICO RECENTE -->
     <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px;display:flex;align-items:center;gap:6px">
       <div style="width:6px;height:6px;border-radius:50%;background:var(--muted)"></div>
@@ -5947,6 +6004,7 @@ function renderDdp() {
     : hist;
   _ddpRenderHist(histParaRender);
   _ddpRenderCard(hoteis, op, anoMes, dataAtiva);
+  renderPenLider();
 }
 
 function _mesLabel(anoMes) {
@@ -6958,6 +7016,9 @@ function renderDdpParque(wrap, hotel, op, dataAtiva, dataAtivaBR, isHoje, hoje) 
       </div>
     </div>
 
+    <!-- PENETRAÇÃO INDIVIDUAL (v2.47) -->
+    <div id="ddpPenInd"></div>
+
     <!-- HISTÓRICO RECENTE -->
     <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:16px 0 10px;display:flex;align-items:center;gap:6px">
       <div style="width:6px;height:6px;border-radius:50%;background:var(--muted)"></div>
@@ -6974,6 +7035,7 @@ function renderDdpParque(wrap, hotel, op, dataAtiva, dataAtivaBR, isHoje, hoje) 
   `;
 
   wrap.innerHTML = html;
+  renderPenLider();
 }
 
 function ddpRecalcParque() {
@@ -6998,6 +7060,228 @@ function ddpRecalcParque() {
 }
 
 // ── FIM DDP ──
+
+// ═══ PENETRAÇÃO INDIVIDUAL (v2.47) ═══
+// Por captador e por hotel: casais em sala (marcados no CDP, pela data da pesquisa) ÷ check-ins do DDP.
+// Pool = casais pool ÷ CI pool · Convidado = casais conv ÷ CI convidados
+// Total = todos os casais em sala menos Externo ÷ CI total (pool + cotistas + convidados + grupos).
+// InicioPenetracao (aba Equipe): casais e check-ins só contam a partir dessa data; vazio = período todo.
+const PEN_HOTEIS = ['SPTR', 'Alta Vista', 'Atrium', 'Marina', 'Toulon'];
+const PEN_MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+function _penHoteisDaOp(op) { return (DDP_CONFIG.operacoes[op] || []).filter(h => PEN_HOTEIS.includes(h)); }
+function _penOpDoHotel(h) { return Object.keys(DDP_CONFIG.operacoes).find(op => DDP_CONFIG.operacoes[op].includes(h)) || null; }
+function _penIso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function _penDM(iso) { return iso.slice(8, 10) + '/' + iso.slice(5, 7); }
+// Semana de segunda a domingo ou mês; offset 0 = o atual, -1 = o anterior...
+function penPeriodo(modo, offset) {
+  const d = new Date(todayISO() + 'T12:00:00');
+  if (modo === 'semana') {
+    const dow = d.getDay();
+    d.setDate(d.getDate() + (dow === 0 ? -6 : 1 - dow) + 7 * offset);
+    const de = _penIso(d); d.setDate(d.getDate() + 6); const ate = _penIso(d);
+    return { de, ate, label: 'Seg ' + _penDM(de) + ' a Dom ' + _penDM(ate), atual: offset === 0 };
+  }
+  d.setDate(1); d.setMonth(d.getMonth() + offset);
+  const de = _penIso(d); d.setMonth(d.getMonth() + 1); d.setDate(0);
+  const nome = PEN_MESES[Number(de.slice(5, 7)) - 1];
+  return { de, ate: _penIso(d), label: nome.charAt(0).toUpperCase() + nome.slice(1) + ' de ' + de.slice(0, 4), atual: offset === 0, mes: nome };
+}
+function _penDataLead(l) {
+  if (l.dateISO && /^\d{4}-\d{2}-\d{2}/.test(l.dateISO)) return l.dateISO.slice(0, 10);
+  const m = String(l.date || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return m ? m[3] + '-' + m[2] + '-' + m[1] : '';
+}
+function _penCheckins(hotel, de, ate) {
+  const ci = { pool: 0, conv: 0, total: 0 };
+  ddpLoadHist(hotel).forEach(e => {
+    if (e.dateISO < de || e.dateISO > ate) return;
+    const p = Number(e.ciPool) || 0, c = Number(e.ciConv) || 0;
+    ci.pool += p; ci.conv += c;
+    ci.total += p + c + (Number(e.ciCot) || 0) + (Number(e.ciGrupos) || 0);
+  });
+  return ci;
+}
+// Casais em sala do hotel no período; nome = só os daquele captador
+function _penCasais(hotel, de, ate, nome) {
+  const c = { pool: 0, conv: 0, total: 0 };
+  const alvo = nome ? _semAcento(nome) : null;
+  leads.forEach(l => {
+    if (l.sala !== hotel || !l.emSala) return;
+    const d = _penDataLead(l);
+    if (!d || d < de || d > ate) return;
+    if (alvo && _semAcento(l.captador) !== alvo) return;
+    const tipo = l.tipoSala || 'pool';
+    if (tipo === 'externo') return;
+    c.total++;
+    if (tipo === 'pool') c.pool++;
+    if (tipo === 'conv') c.conv++;
+  });
+  return c;
+}
+function penCalc(hotel, per, nome, inicio) {
+  const de = inicio && inicio > per.de ? inicio : per.de;
+  const ate = per.ate;
+  const desde = inicio && inicio > per.de && inicio <= ate ? inicio : null;
+  if (de > ate) return { antes: true, inicio, casais: { pool: 0, conv: 0, total: 0 }, ci: { pool: 0, conv: 0, total: 0 } };
+  const casais = _penCasais(hotel, de, ate, nome), ci = _penCheckins(hotel, de, ate);
+  return { casais, ci, desde };
+}
+function _penPct(n, d) { return d > 0 ? fmtPct(ddpPct(n, d)) : '—'; }
+function _penNum(n) { return Number(n || 0).toLocaleString('pt-BR'); }
+function _penInicioDe(nome) { const m = _membro(nome); return (m && m.inicioPenetracao) || ''; }
+
+// Carrega pesquisas do período (marcações do CDP feitas em outros celulares) e o DDP dos hotéis
+const _penFaixas = new Set(), _penDdpPedido = new Set();
+let _penCarregando = 0;
+function _penCarregar(per, hoteis) {
+  hoteis.forEach(h => { if (!_ddpRemoteCache[h] && !_penDdpPedido.has(h)) { _penDdpPedido.add(h); ddpSheetsLoad(h); } });
+  const k = per.de + '_' + per.ate;
+  if (_penFaixas.has(k) || !API.ok() || !navigator.onLine) return;
+  _penFaixas.add(k); _penCarregando++;
+  API.getLeads(null, per.de, per.ate < todayISO() ? per.ate : todayISO())
+    .then(remoto => { if (!remoto) setTimeout(() => _penFaixas.delete(k), 60000); else mergeRemoto(remoto, per.de); })
+    .catch(() => setTimeout(() => _penFaixas.delete(k), 60000)) // sem resposta: tenta de novo só depois de 1 min
+    .finally(() => { _penCarregando--; _penAoChegar(); });
+}
+function _penAoChegar() {
+  const tela = document.getElementById('screenPen');
+  if (tela && tela.classList.contains('active')) renderPen();
+  if (document.getElementById('ddpPenInd')) renderPenLider();
+}
+function _penSeg(modo, fn) {
+  return `<div class="pen-seg"><button class="${modo === 'semana' ? 'on' : ''}" onclick="${fn}('semana')">Semana</button><button class="${modo === 'mes' ? 'on' : ''}" onclick="${fn}('mes')">Mês</button></div>`;
+}
+function _penSetas(per, fn, sub) {
+  return `<div class="pen-per">
+    <button class="pen-seta" onclick="${fn}(-1)" aria-label="Período anterior">‹</button>
+    <div class="pen-per-lbl">${per.label}${sub ? '<span class="pen-per-sub">' + sub + '</span>' : ''}</div>
+    <button class="pen-seta" onclick="${fn}(1)" aria-label="Próximo período"${per.atual ? ' disabled' : ''}>›</button>
+  </div>`;
+}
+
+// ── Tela do captador: "Minha penetração" ──
+const penState = { modo: 'semana', off: 0, hotel: null };
+function _penHotelPadrao(hoteis) {
+  const m = _membro(captador.nome) || {};
+  if (m.sala && hoteis.includes(m.sala)) return m.sala;
+  if (salaAtual && hoteis.includes(salaAtual.nome)) return salaAtual.nome;
+  // senão, o hotel onde ele tem mais casais em sala neste mês
+  const mes = penPeriodo('mes', 0);
+  const conta = hoteis.map(h => [h, _penCasais(h, mes.de, mes.ate, captador.nome).total]).sort((a, b) => b[1] - a[1]);
+  return conta.length ? conta[0][0] : null;
+}
+function showPen() {
+  hideAll(); show('screenPen');
+  const hoteis = _penHoteisDaOp(captador.operacao);
+  if (!hoteis.includes(penState.hotel)) penState.hotel = _penHotelPadrao(hoteis);
+  renderPen();
+}
+function penModo(m) { penState.modo = m; penState.off = 0; renderPen(); }
+function penMover(d) { penState.off = Math.min(0, penState.off + d); renderPen(); }
+function penHotel(h) { penState.hotel = h; renderPen(); }
+function renderPen() {
+  const wrap = document.getElementById('penWrap');
+  if (!wrap || !captador) return;
+  const hoteis = _penHoteisDaOp(captador.operacao), hotel = penState.hotel;
+  if (!hotel) { wrap.innerHTML = '<div class="pen-titulo">Minha penetração</div><div class="pen-sub">Sua operação não tem hotel com penetração.</div>'; return; }
+  const per = penPeriodo(penState.modo, penState.off);
+  _penCarregar(per, [hotel]);
+  const inicio = _penInicioDe(captador.nome);
+  const r = penCalc(hotel, per, captador.nome, inicio);
+  const chips = hoteis.length > 1 ? '<div class="pen-chips">' + hoteis.map(h => `<button class="${h === hotel ? 'on' : ''}" data-h="${_escEq(h)}" onclick="penHotel(this.dataset.h)">${_escEq(h)}</button>`).join('') + '</div>' : '';
+  let corpo;
+  if (r.antes) {
+    corpo = `<div class="pen-hero"><div class="pen-rot">Penetração total</div><div class="pen-big">—</div><div class="pen-conta">Sua penetração começa a contar em ${_penDM(inicio)}/${inicio.slice(0, 4)}.</div></div>`;
+  } else {
+    const c = r.casais, ci = r.ci;
+    corpo = `${r.desde ? '<div class="pen-desde">Contando desde ' + _penDM(r.desde) + '</div>' : ''}
+    <div class="pen-hero">
+      <div class="pen-rot">Penetração total</div>
+      <div class="pen-big">${_penPct(c.total, ci.total)}</div>
+      <div class="pen-conta">${_penNum(c.total)} ${c.total === 1 ? 'casal' : 'casais'} em sala ÷ ${_penNum(ci.total)} check-ins</div>
+    </div>
+    <div class="pen-duo">
+      <div class="pen-card"><div class="pen-rot">Pool</div><div class="pen-mid">${_penPct(c.pool, ci.pool)}</div><div class="pen-conta">${_penNum(c.pool)} ÷ ${_penNum(ci.pool)} check-ins</div></div>
+      <div class="pen-card"><div class="pen-rot">Convidado</div><div class="pen-mid">${_penPct(c.conv, ci.conv)}</div><div class="pen-conta">${_penNum(c.conv)} ÷ ${_penNum(ci.conv)} check-ins</div></div>
+    </div>`;
+    if (penState.modo === 'semana') {
+      // resumo do mês da semana escolhida (até hoje, se for o mês atual)
+      const ref = per.ate < todayISO() ? per.ate : todayISO();
+      const hojeMes = todayISO().slice(0, 7);
+      const off = (Number(ref.slice(0, 4)) - Number(hojeMes.slice(0, 4))) * 12 + Number(ref.slice(5, 7)) - Number(hojeMes.slice(5, 7));
+      const mes = penPeriodo('mes', off);
+      _penCarregar(mes, [hotel]);
+      const rm = penCalc(hotel, mes, captador.nome, inicio);
+      if (!rm.antes) {
+        const lin = (rot, n, d) => `<div class="pen-linha"><span>${rot}</span><span><b>${_penPct(n, d)}</b><small>${_penNum(n)} ÷ ${_penNum(d)}</small></span></div>`;
+        corpo += `<div class="pen-card" style="margin-top:10px">
+          <div class="pen-rot" style="margin-bottom:4px">Mês de ${mes.mes}${mes.atual ? ' (até hoje)' : ''}${rm.desde ? ' · desde ' + _penDM(rm.desde) : ''}</div>
+          ${lin('Total', rm.casais.total, rm.ci.total)}${lin('Pool', rm.casais.pool, rm.ci.pool)}${lin('Convidado', rm.casais.conv, rm.ci.conv)}
+        </div>`;
+      }
+    }
+  }
+  wrap.innerHTML = `<div class="pen-titulo">Minha penetração</div>
+    <div class="pen-sub">${_escEq(hotel)} · casais em sala ÷ check-ins</div>
+    ${chips}${_penSeg(penState.modo, 'penModo')}${_penSetas(per, 'penMover')}${corpo}
+    <div class="pen-aviso">${_penCarregando ? 'Atualizando…' : 'Casais marcados em sala no CDP, pelo dia da pesquisa. Check-ins do DDP do hotel.'}</div>`;
+}
+
+// ── Líder / CEO: "Controle de penetração individual" dentro do DDP ──
+const penLid = { modo: 'semana', off: 0, hotel: null };
+function _penHoteisLider() { return [].concat(...ddpOpcoesLider().map(op => _penHoteisDaOp(op))); }
+function penLidModo(m) { penLid.modo = m; penLid.off = 0; renderPenLider(); }
+function penLidMover(d) { penLid.off = Math.min(0, penLid.off + d); renderPenLider(); }
+function penLidHotel(h) { penLid.hotel = h; renderPenLider(); }
+function renderPenLider() {
+  const box = document.getElementById('ddpPenInd');
+  if (!box) return;
+  const hoteis = _penHoteisLider();
+  if (!hoteis.length) { box.innerHTML = ''; return; }
+  if (!hoteis.includes(penLid.hotel)) penLid.hotel = hoteis.includes(ddpState.hotel) ? ddpState.hotel : hoteis[0];
+  const hotel = penLid.hotel, per = penPeriodo(penLid.modo, penLid.off);
+  _penCarregar(per, [hotel]);
+  const opHotel = _penOpDoHotel(hotel);
+  // quem entra: quem fez pesquisa neste hotel no período, ou tem este hotel como sala na Equipe
+  const nomes = new Map();
+  equipeAtual().forEach(m => { if (m.operacao === opHotel && m.sala === hotel) nomes.set(_semAcento(m.nome), m.nome); });
+  leads.forEach(l => {
+    if (l.sala !== hotel || !l.captador) return;
+    const d = _penDataLead(l);
+    if (d >= per.de && d <= per.ate && !nomes.has(_semAcento(l.captador))) nomes.set(_semAcento(l.captador), l.captador);
+  });
+  const linhas = [...nomes.values()].map(nome => {
+    const inicio = _penInicioDe(nome), r = penCalc(hotel, per, nome, inicio);
+    const pt = r.ci.total > 0 ? r.casais.total / r.ci.total : -1;
+    return { nome, inicio, r, pt };
+  }).sort((a, b) => b.pt - a.pt || b.r.casais.total - a.r.casais.total || a.nome.localeCompare(b.nome));
+  const ciH = _penCheckins(hotel, per.de, per.ate), cH = _penCasais(hotel, per.de, per.ate, null);
+  const curto = n => { const p = n.split(' ').filter(Boolean); return p.length > 1 ? p[0] + ' ' + p[p.length - 1][0] + '.' : n; };
+  const corpo = linhas.length ? linhas.map((x, i) => {
+    const c = x.r.casais, ci = x.r.ci;
+    const obs = x.r.antes ? '<small>conta a partir de ' + _penDM(x.inicio) + '</small>' : (x.r.desde ? '<small>desde ' + _penDM(x.r.desde) + '</small>' : '');
+    return `<div class="pen-tr"><div title="${_escEq(x.nome)}">${i + 1}. ${_escEq(curto(x.nome))}${obs}</div><div>${c.total}</div><div>${_penPct(c.pool, ci.pool)}</div><div>${_penPct(c.conv, ci.conv)}</div><div class="t">${_penPct(c.total, ci.total)}</div></div>`;
+  }).join('') : '<div class="pen-tr" style="grid-template-columns:1fr;color:var(--muted)"><div style="text-align:center">Nenhuma pesquisa neste hotel no período.</div></div>';
+  const opts = hoteis.map(h => `<option value="${_escEq(h)}"${h === hotel ? ' selected' : ''}>${_escEq(h)}</option>`).join('');
+  box.innerHTML = `<hr style="border:none;border-top:1px solid var(--border);margin:16px 0"/>
+    <div class="pen-titulo" style="font-size:18px">Controle de penetração individual</div>
+    <div class="pen-sub">Casais em sala ÷ check-ins do hotel</div>
+    <div class="pen-topo"><select onchange="penLidHotel(this.value)" aria-label="Hotel">${opts}</select>${_penSeg(penLid.modo, 'penLidModo')}</div>
+    ${_penSetas(per, 'penLidMover', 'Check-ins: ' + _penNum(ciH.total) + ' · Pool ' + _penNum(ciH.pool) + ' · Conv. ' + _penNum(ciH.conv))}
+    <div class="pen-tab">
+      <div class="pen-tr pen-th"><div>Captador</div><div>Casais</div><div>Pool</div><div>Conv.</div><div>Total</div></div>
+      ${corpo}
+      <div class="pen-tr pen-eq"><div>Equipe</div><div>${cH.total}</div><div>${_penPct(cH.pool, ciH.pool)}</div><div>${_penPct(cH.conv, ciH.conv)}</div><div class="t">${_penPct(cH.total, ciH.total)}</div></div>
+    </div>
+    <div class="pen-aviso">${_penCarregando ? 'Atualizando… · ' : ''}Ordenado pela penetração total. O captador vê só a própria linha, no ícone "Minha penetração". A data de início de cada um é definida na aba Equipe.</div>`;
+}
+
+// Líder/CEO define, na aba Equipe, a partir de quando conta a penetração de cada um (backend v23)
+async function definirInicioPen(nome, inicio, el) {
+  const res = await equipeAcao({ _action: 'equipe_inicio_penetracao', nome, inicio: inicio || '' });
+  if (res) showEquipe();
+  else if (el) el.value = _penInicioDe(nome);
+}
 
 // ═══ EQUIPE — gestão pela planilha (v2.36) ═══
 // CEO gerencia todas as operações; líder e sublíder só a própria.
@@ -7040,6 +7324,14 @@ function showEquipe() {
           ? `<button class="eq-btn" data-nome="${nomeAttr}" onclick="cancelarSuporteTemp(this.dataset.nome)">✕ Suporte</button>`
           : `<button class="eq-btn neutro" data-nome="${nomeAttr}" onclick="abrirSuporteTemp(this.dataset.nome)">↔ Suporte</button>`);
       }
+      // v2.47: início da penetração individual (só operações com hotel de penetração)
+      let penInfo = '';
+      if (!local && _penHoteisDaOp(m.operacao).length && !['ceo','supervisor_adm'].includes(m.cargo)) {
+        const ini = m.inicioPenetracao || '';
+        if (podeGerenciar(m)) {
+          penInfo = `<div class="eq-pen">📈 Penetração desde <input type="date" value="${_escEq(ini)}" data-nome="${nomeAttr}" onchange="definirInicioPen(this.dataset.nome, this.value, this)"/>${ini ? `<button class="eq-btn neutro" data-nome="${nomeAttr}" onclick="definirInicioPen(this.dataset.nome, '')">Todo o período</button>` : '<span>(todo o período)</span>'}</div>`;
+        } else if (ini) penInfo = `<div class="eq-pen">📈 Penetração desde ${_penDM(ini)}/${ini.slice(0, 4)}</div>`;
+      }
       const suporteInfo = suporteAtivo ? `<div style="font-size:11px;color:var(--gold);margin-top:2px">↔ Suporte: ${_escEq(suporteAtivo.operacoes.join(', '))} até ${_escEq(suporteAtivo.expira)}</div>` : '';
       return `<div class="eq-card" style="align-items:flex-start">
         <div class="eq-av">${_escEq(ini)}</div>
@@ -7047,6 +7339,7 @@ function showEquipe() {
           <div class="eq-name">${_escEq(m.nome)}${local ? '<span class="eq-tag">só neste celular</span>' : ''}${souEu ? '<span class="eq-tag">você</span>' : ''}</div>
           <div class="eq-meta">${_escEq(ROLE[m.cargo] || m.cargo)}${m.operacao ? ' · ' + _escEq(m.operacao) : ''}${m.sala ? ' · 🏢 ' + _escEq(m.sala) : ''}</div>
           ${suporteInfo}
+          ${penInfo}
           ${acoes.length ? '<div class="eq-acoes">' + acoes.join('') + '</div>' : ''}
         </div>
       </div>`;
@@ -7066,6 +7359,7 @@ const EQ_ERROS = {
   nao_encontrado: 'Membro não encontrado na planilha.', nao_pode_si_mesmo: 'Você não pode desativar a si mesmo.',
   redefinir_pelo_ceo: MSG_SENHA.redefinir_pelo_ceo, senha_igual: 'A senha provisória precisa ser diferente da senha atual da pessoa.',
   sem_aba: 'A planilha ainda não tem a aba Equipe. Peça ao Erick para rodar criarAbaEquipe.',
+  data_invalida: 'Data inválida.', sem_id: 'A planilha ainda não aceita esta data. Peça ao Erick para implantar o backend v23.',
 };
 function pedirSenhaGestor(msg, pedirInicial) {
   return new Promise(resolve => {
@@ -7296,7 +7590,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.46';
+const APP_VERSAO = '2.47';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
