@@ -114,6 +114,12 @@
     #pwInput   { letter-spacing: 2px; }
     .pw-olho   { width: 44px; height: 44px; margin-right: -10px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; padding: 0; }
     .pw-error  { font-size: 13px; color: #FF8A8A; line-height: 1.4; }
+    /* v2.49: pesquisas presas no celular */
+    .lg-fila { display: block; margin-top: 18px; width: 100%; background: rgba(255,138,138,.12); border: 1px solid #FF8A8A; border-radius: 12px; padding: 12px 14px; color: #FFD2D2; font-size: 14px; line-height: 1.45; text-align: left; }
+    .lg-fila b { color: #fff; display: block; width: 100%; font-size: 15px; margin-bottom: 2px; }
+    .header.com-aviso { flex-wrap: wrap; }
+    .aviso-fila { order: 99; flex-basis: calc(100% + 36px); margin: 6px -18px -12px; padding: 9px 18px; background: #7a2a2a; color: #fff; font-size: 13px; font-weight: 600; line-height: 1.35; cursor: pointer; }
+    .aviso-fila span { font-weight: 400; opacity: .9; }
     .pw-error:empty { display: none; }
     .btn-login {
       display: block; width: 100%; height: 56px;
@@ -902,6 +908,8 @@
     <div class="lg-tag">Captação e qualificação</div>
   </div>
 
+  <div class="lg-fila hidden" id="lgAvisoFila" role="alert"></div>
+
   <!-- PASSO 1: buscar o nome (a lista só aparece depois de 2 letras) -->
   <div id="loginSelectPanel">
     <label class="lg-label" for="loginSearch">Quem está captando hoje?</label>
@@ -1023,6 +1031,7 @@
   <div class="sala-pill hidden" id="salaPill">🏢 —</div>
   <div class="captador-pill" id="captadorPill" onclick="trocarCaptador()">👤 —</div>
   <div class="mode-badge low hidden" id="modeBadge" onclick="onModeBadgeClick()"></div>
+  <div class="aviso-fila hidden" id="avisoFila" role="status" onclick="avisoFilaToque()"></div>
 </div>
 
 <!-- MAIN -->
@@ -1391,18 +1400,36 @@ const MSG_SENHA = {
 // crachá sem digitar a senha, se a senha pessoal deste celular já estiver na planilha.
 const CRACHA_KEY = 'yv_cracha';
 function qqCracha() { try { return localStorage.getItem(CRACHA_KEY) || ''; } catch (e) { return ''; } }
-function qqGuardarCracha(c) { if (!c) return; try { localStorage.setItem(CRACHA_KEY, c); } catch (e) {} setTimeout(() => { try { offlineFlush(); ddpOfflineFlush(); } catch (e) {} }, 300); }
+function qqGuardarCracha(c) { if (!c) return; try { localStorage.setItem(CRACHA_KEY, c); } catch (e) {} _aguardandoLogin = false; setTimeout(() => { try { offlineFlush(); ddpOfflineFlush(); } catch (e) {} qqAtualizarAvisoFila(); }, 300); }
 function qqApagarCracha() { try { localStorage.removeItem(CRACHA_KEY); } catch (e) {} }
 function qqParamCracha() { const c = qqCracha(); return c ? 'cracha=' + encodeURIComponent(c) : ''; }
-function _comCracha(obj) { const c = qqCracha(); return c ? { ...obj, cracha: c } : obj; }
+// v2.49: todo envio diz quem mandou, a versão do app e quanto ainda está na fila (a planilha registra as recusas)
+function _comCracha(obj) {
+  const c = qqCracha();
+  const extra = { _quem: _quemEstaNoCelular(), _v: APP_VERSAO, _fila: qqContarFila().total };
+  return c ? { ...obj, ...extra, cracha: c } : { ...obj, ...extra };
+}
 function _urlComCracha(url) { const c = qqParamCracha(); return c ? url + (url.includes('?') ? '&' : '?') + c : url; }
-// A planilha recusou o crachá (vencido, sem crachá…): tenta outro e, se não der, pede a senha
+// v2.49: a planilha recusou o crachá (sem crachá, vencido, sessão antiga): abre NA HORA a tela de senha,
+// mesmo sem senha pessoal salva neste celular. Em paralelo tenta um crachá novo pela senha salva;
+// se conseguir, fecha a tela sozinho. Enquanto isso a fila não é reenviada (evita recusas repetidas).
+const CODIGOS_CRACHA_RECUSADO = ['sem_cracha', 'cracha_invalido', 'refazer_login'];
+const MSG_FILA_PARADA = 'Suas pesquisas não estão sendo enviadas. Entre de novo.';
 let _crachaEmAndamento = false;
-function _verCodigoCracha(json) { if (json && (json.code === 'sem_cracha' || json.code === 'cracha_invalido')) qqCrachaRecusado(); }
+let _aguardandoLogin = false, _loginAbertoPorRecusa = false;
+function _verCodigoCracha(json) { if (json && CODIGOS_CRACHA_RECUSADO.includes(json.code)) qqCrachaRecusado(); }
 function qqCrachaRecusado() {
-  if (_crachaEmAndamento || !captador) return;
   qqApagarCracha();
-  qqObterCracha(true);
+  _aguardandoLogin = true;
+  const tela = document.getElementById('screenLogin');
+  // a tela de senha pode já estar aberta (ex.: celular sem senha pessoal salva): só troca a mensagem
+  if (captador && tela.classList.contains('hidden')) { _loginAbertoPorRecusa = true; _pedirSenhaDeNovo(captador.nome); }
+  qqAtualizarAvisoFila();
+  if (captador && !_crachaEmAndamento) qqObterCracha(false);
+}
+function _quemEstaNoCelular() {
+  if (captador) return captador.nome;
+  try { return loginSelectedNome || sessionStorage.getItem('yv_captador') || localStorage.getItem('yv_captador') || ''; } catch (e) { return ''; }
 }
 async function qqObterCracha(pedirSenhaSeFalhar) {
   if (_crachaEmAndamento || !captador || !navigator.onLine || !API.ok()) return;
@@ -1412,7 +1439,12 @@ async function qqObterCracha(pedirSenhaSeFalhar) {
     const hash = localStorage.getItem('yv_pw_' + nome);
     if (hash) {
       const r = await API.postJson({ _action: 'equipe_cracha', nome, hash, desde: localStorage.getItem('yv_login_em') || '' });
-      if (r && r.status === 'ok' && r.cracha) { qqGuardarCracha(r.cracha); return; }
+      if (r && r.status === 'ok' && r.cracha) {
+        qqGuardarCracha(r.cracha);
+        // conseguiu sozinho: fecha a tela de senha que a recusa abriu
+        if (_loginAbertoPorRecusa && captador && captador.nome === nome) { _loginAbertoPorRecusa = false; document.getElementById('screenLogin').classList.add('hidden'); qqAtualizarAvisoFila(); }
+        return;
+      }
       // planilha antiga (sem crachá) ou sem resposta: não faz nada
       if (!r || !['senha_nao_confere', 'senha_migrada', 'refazer_login', 'bloqueado'].includes(r.code)) return;
     } else if (!pedirSenhaSeFalhar) return;
@@ -1422,11 +1454,60 @@ async function qqObterCracha(pedirSenhaSeFalhar) {
 function _pedirSenhaDeNovo(nome) {
   document.getElementById('screenLogin').classList.remove('hidden');
   ['criarSenhaPanel','pwChangePanel','forgotPanel'].forEach(id => document.getElementById(id).classList.add('hidden'));
-  if (_membro(nome)) {
-    loginPickNome(nome);
-    document.getElementById('pwError').textContent = 'Para continuar enviando e vendo as pesquisas, entre de novo com a sua senha.';
-  } else voltarParaBusca();
+  if (_membro(nome)) loginPickNome(nome);
+  else voltarParaBusca();
+  qqAtualizarAvisoFila();
 }
+
+// ═══ AVISO DE PENDÊNCIAS (v2.49) ═══
+// Faixa fixa no topo com o que ainda não chegou à planilha; na tela de entrada, aviso em vermelho.
+function qqContarFila() {
+  try { return _contarFila(); } catch (e) { return { pesq: 0, marc: 0, total: 0 }; } // antes do app terminar de carregar
+}
+function _contarFila() {
+  let pesq = 0, marc = 0;
+  try {
+    JSON.parse(localStorage.getItem(OFFLINE_KEY) || '[]').forEach(x => {
+      if (!x || !x.id) return;
+      if (!x._action) pesq++;
+      else if (x._action === 'update_sala') marc++;
+    });
+  } catch (e) {}
+  try { marc += JSON.parse(localStorage.getItem(DDP_OFFLINE_KEY) || '[]').length; } catch (e) {}
+  pesq += _emEnvio.pesq; marc += _emEnvio.marc; // saíram da fila e ainda estão a caminho
+  return { pesq, marc, total: pesq + marc };
+}
+function _textoFila(f) {
+  const p = [];
+  if (f.pesq) p.push(f.pesq + (f.pesq === 1 ? ' pesquisa' : ' pesquisas'));
+  if (f.marc) p.push(f.marc + (f.marc === 1 ? ' marcação' : ' marcações'));
+  return p.join(' e ');
+}
+function qqAtualizarAvisoFila() {
+  const f = qqContarFila();
+  const faixa = document.getElementById('avisoFila'), cab = faixa && faixa.parentElement;
+  if (faixa) {
+    if (f.total) {
+      const plural = f.total === 1 ? 'ainda não enviada' : 'ainda não enviadas';
+      faixa.innerHTML = '⚠️ ' + _textoFila(f) + ' ' + plural + (_aguardandoLogin ? ' · <span>toque para entrar de novo</span>' : (navigator.onLine ? ' · <span>enviando…</span>' : ' · <span>sem internet</span>'));
+    }
+    faixa.classList.toggle('hidden', !f.total);
+    cab.classList.toggle('com-aviso', !!f.total);
+  }
+  const av = document.getElementById('lgAvisoFila');
+  if (av) {
+    if (_aguardandoLogin) av.innerHTML = '<b>' + MSG_FILA_PARADA + '</b>' + (f.total ? _textoFila(f) + ' aguardando neste celular.' : '');
+    else if (f.total) av.innerHTML = '<b>' + _textoFila(f) + (f.total === 1 ? ' ainda não enviada' : ' ainda não enviadas') + ' neste celular.</b>Entre para enviar.';
+    av.classList.toggle('hidden', !_aguardandoLogin && !f.total);
+  }
+}
+function avisoFilaToque() {
+  if (_aguardandoLogin && captador) { _loginAbertoPorRecusa = true; _pedirSenhaDeNovo(captador.nome); return; }
+  offlineFlush(); try { ddpOfflineFlush(); } catch (e) {}
+}
+setInterval(qqAtualizarAvisoFila, 5000);
+window.addEventListener('online', qqAtualizarAvisoFila);
+window.addEventListener('offline', qqAtualizarAvisoFila);
 
 // ═══ MIGRAÇÃO DE ENDEREÇO (v2.27) ═══
 // A ponte do endereço antigo envia, dentro do próprio link (depois do #, que não vai
@@ -2205,8 +2286,10 @@ function _entrarAposLogin(nome, pessoal) {
     return;
   }
   _senhaDoLogin = null;
+  _loginAbertoPorRecusa = false;
   document.getElementById('screenLogin').classList.add('hidden');
   afterLogin();
+  qqAtualizarAvisoFila();
 }
 
 // — Primeiro login: criação de senha pessoal —
@@ -7705,7 +7788,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.48';
+const APP_VERSAO = '2.49';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
@@ -7777,6 +7860,7 @@ function offlineEnqueue(lead, naoSobrescrever) {
   // nova na fila (feita durante o envio), mantém a mais nova
   if (idx >= 0) { if (!naoSobrescrever) q[idx] = lead; } else q.push(lead);
   localStorage.setItem(OFFLINE_KEY, JSON.stringify(q));
+  qqAtualizarAvisoFila();
 }
 
 // Marcação cuja pesquisa ainda não está na planilha: tenta de novo. Se a pesquisa ainda
@@ -7790,9 +7874,11 @@ function _reenfileirarMarcacaoSemPesquisa(u) {
 }
 
 let _flushEmAndamento = false;
+const _emEnvio = { pesq: 0, marc: 0 };
 function offlineFlush() {
   if (!navigator.onLine || !API.ok()) return;
   if (_flushEmAndamento) return; // já está rodando, não empilha
+  if (_aguardandoLogin && !qqCracha()) return; // v2.49: crachá recusado — espera entrar de novo
   const q = JSON.parse(localStorage.getItem(OFFLINE_KEY) || '[]');
   if (!q.length) return;
   const pendentes = q.filter(x => x && x.id);
@@ -7803,8 +7889,10 @@ function offlineFlush() {
     // Leads primeiro (a linha precisa existir antes da marcação de sala)
     const novos = pendentes.filter(x => x._action !== 'update_sala');
     const salas = pendentes.filter(x => x._action === 'update_sala');
+    _emEnvio.pesq = novos.filter(x => !x._action).length; _emEnvio.marc = salas.length;
     for (const lead of novos) {
       const ok = await API.post(lead).catch(() => false);
+      if (!lead._action) _emEnvio.pesq = Math.max(0, _emEnvio.pesq - 1);
       if (ok) {
         if (!lead._action) {
           const i = leads.findIndex(l => String(l.id) === String(lead.id));
@@ -7817,6 +7905,7 @@ function offlineFlush() {
       const payload = salas.length === 1 ? salas[0]
         : { _action: 'update_sala_batch', updates: salas.map(u => ({ id: u.id, emSala: u.emSala, tipoSala: u.tipoSala, venda: u.venda })) };
       const res = await API.postJson(payload).catch(() => null);
+      _emEnvio.marc = 0;
       const ok = res && (res.status === 'ok' || res.status === 'duplicate');
       if (res && res.status === 'not_found') salas.forEach(_reenfileirarMarcacaoSemPesquisa);
       else if (!ok) salas.forEach(u => offlineEnqueue(u, true));
@@ -7828,6 +7917,7 @@ function offlineFlush() {
     }
     _flushEmAndamento = false;
     if (salvouAlgo) { _salvarLeads(); renderHistList(); }
+    qqAtualizarAvisoFila();
   })();
 }
 
@@ -7911,6 +8001,7 @@ function _qqIniciarPonte() {
 initLogin();
 equipeSincronizar().then(equipeVerificarSessao); // atualiza a equipe e confere se este celular precisa entrar de novo
 offlineFlush(); // tenta reenviar ao carregar se já online
+qqAtualizarAvisoFila();
 </script>
 </body>
 </html>

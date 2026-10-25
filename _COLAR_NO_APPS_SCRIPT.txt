@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════
 // Your Vacation — Qualificador de Captação
-// Google Apps Script Backend — v24
+// Google Apps Script Backend — v25
 // Cole este código em: Planilha > Extensões > Apps Script
 // Depois: Implantar > Gerenciar implantações > Editar > Nova versão > Implantar
 // ═══════════════════════════════════════════════════════
@@ -436,6 +436,64 @@ function lerCracha(cracha) {
 // Emergência: rodar desligarCracha() faz o backend aceitar pedidos sem crachá (como antes)
 function desligarCracha() { PropertiesService.getScriptProperties().setProperty('CRACHA_DESLIGADO', 'SIM'); Logger.log('Crachá DESLIGADO: pedidos sem crachá são aceitos.'); }
 function ligarCracha()    { PropertiesService.getScriptProperties().deleteProperty('CRACHA_DESLIGADO'); Logger.log('Crachá LIGADO: leituras e gravações exigem crachá.'); }
+// ── RECUSADOS (v25) ──
+// Envio recusado pelo crachá (celular com sessão antiga ou app desatualizado) vira uma linha na aba
+// "Recusados": uma por dia + captador + motivo. Quantidade = pesquisas e marcações diferentes recusadas
+// no dia; "Na fila do celular" = o que o app (v2.49+) diz que ainda está preso.
+const RECUSADOS_SHEET = 'Recusados';
+const RECUSADOS_COLUNAS = ['Data', 'Captador', 'Motivo', 'Quantidade', 'Na fila do celular', 'Tentativas', 'Último envio', 'Versão do app', 'IDs'];
+const RECUSA_MOTIVO = { sem_cracha: 'sem crachá (sessão antiga ou app desatualizado)', cracha_invalido: 'crachá vencido ou inválido' };
+function _nomeDoCrachaSemConferir(cracha) {
+  try {
+    const t = String(cracha || '').split('.')[0];
+    if (!t) return '';
+    const p = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(t + '==='.slice((t.length + 3) % 4))).getDataAsString());
+    return p && p.n ? String(p.n) : '';
+  } catch (e) { return ''; }
+}
+function _registrarRecusa(d, code) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return; // registro não pode atrasar o app
+  try {
+    // quem mandou: o app novo diz (_quem); o antigo, pela pesquisa ou pelo crachá velho
+    const candidato = d._quem || d.captador || _nomeDoCrachaSemConferir(d.cracha);
+    const m = candidato ? _acharMembro(candidato) : null; // só nomes da equipe (o resto vira "desconhecido")
+    const nome = m ? m.nome : '(desconhecido)';
+    const ids = [];
+    if (Array.isArray(d.updates)) d.updates.forEach(u => { if (u && u.id) ids.push('m' + u.id); });
+    else if (d.id) ids.push((d._action ? 'm' : 'p') + d.id);
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sh = ss.getSheetByName(RECUSADOS_SHEET);
+    if (!sh) {
+      sh = ss.insertSheet(RECUSADOS_SHEET);
+      const h = sh.getRange(1, 1, 1, RECUSADOS_COLUNAS.length);
+      h.setValues([RECUSADOS_COLUNAS]); h.setBackground('#1a2340'); h.setFontColor('#c9a84c'); h.setFontWeight('bold');
+      sh.setFrozenRows(1);
+      sh.getRange('A:A').setNumberFormat('@STRING@');
+    }
+    const hoje = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'yyyy-MM-dd');
+    const agora = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm');
+    const motivo = RECUSA_MOTIVO[code] || code;
+    const fila = d._fila !== undefined && d._fila !== '' ? Number(d._fila) || 0 : '';
+    const n = sh.getLastRow() - 1;
+    // procura a linha de hoje deste captador/motivo (só as últimas 300 linhas)
+    const ini = Math.max(2, sh.getLastRow() - 299);
+    const linhas = n > 0 ? sh.getRange(ini, 1, sh.getLastRow() - ini + 1, RECUSADOS_COLUNAS.length).getValues() : [];
+    for (let i = linhas.length - 1; i >= 0; i--) {
+      const l = linhas[i];
+      if (String(l[0]) === hoje && l[1] === nome && l[2] === motivo) {
+        const vistos = String(l[8] || '').split(',').filter(Boolean);
+        ids.forEach(x => { if (vistos.indexOf(x) < 0 && vistos.length < 2000) vistos.push(x); });
+        const qtd = Math.max(Number(l[3]) || 0, vistos.length || (Number(l[3]) || 0) + (ids.length ? 0 : 1));
+        sh.getRange(ini + i, 4, 1, 6).setValues([[qtd, fila === '' ? l[4] : fila, (Number(l[5]) || 0) + 1, agora, d._v || l[7] || 'antiga (sem versão)', vistos.join(',')]]);
+        return;
+      }
+    }
+    sh.appendRow([hoje, nome, motivo, Math.max(ids.length, 1), fila, 1, agora, d._v || 'antiga (sem versão)', ids.join(',')]);
+  } catch (e) {
+    // nunca quebra o pedido por causa do registro
+  } finally { lock.releaseLock(); }
+}
 function _autenticar(cracha) {
   if (cracha) {
     const u = lerCracha(cracha);
@@ -576,7 +634,7 @@ function doPost(e) {
   // Gestão da equipe: conferida pela senha de quem gerencia (por + porSenha)
   if (/^equipe_/.test(String(d._action || ''))) return comTrava(() => _doPost(e, null));
   const a = _autenticar(d.cracha);
-  if (!a.ok) return jsonResponse({ status: 'error', code: a.code });
+  if (!a.ok) { _registrarRecusa(d, a.code); return jsonResponse({ status: 'error', code: a.code }); }
   // v14: marcações de sala (só atualizam células de linhas que já existem) rodam sem a trava
   if (d._action === 'update_sala' || d._action === 'update_sala_batch') return _doPost(e, a.user);
   return comTrava(() => _doPost(e, a.user));
@@ -585,7 +643,7 @@ function doPost(e) {
 function _doPost(e, user) {
   try {
     const data = JSON.parse(e.postData.contents);
-    delete data.cracha;
+    delete data.cracha; delete data._quem; delete data._v; delete data._fila; // v25: só servem para a aba Recusados
     if (data.sala !== undefined && data.sala !== null) data.sala = normalizarSalaDigitada(data.sala);
 
     // saveDDP: salva/atualiza registro de DDP na aba DDP do Sheets
