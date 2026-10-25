@@ -1470,7 +1470,8 @@ function _contarFila() {
     JSON.parse(localStorage.getItem(OFFLINE_KEY) || '[]').forEach(x => {
       if (!x || !x.id) return;
       if (!x._action) pesq++;
-      else if (x._action === 'update_sala') marc++;
+      // v2.50: marcação esperando a pesquisa aparecer na planilha (_tentativas) não conta como pendente
+      else if (x._action === 'update_sala' && !x._tentativas) marc++;
     });
   } catch (e) {}
   try { marc += JSON.parse(localStorage.getItem(DDP_OFFLINE_KEY) || '[]').length; } catch (e) {}
@@ -4683,8 +4684,9 @@ let _salaFlushTimer = null;
 function _syncSalaState(lead) {
   if (typeof lead === 'number') lead = leads[lead]; // compatibilidade
   if (!lead || !lead.id) return;
+  // v2.50: _em = quando a marcação foi feita neste aparelho (vale 24h contra a planilha no mergeRemoto)
   offlineEnqueue({ _action: 'update_sala', id: lead.id,
-    emSala: !!lead.emSala, tipoSala: lead.tipoSala || null, venda: !!lead.venda });
+    emSala: !!lead.emSala, tipoSala: lead.tipoSala || null, venda: !!lead.venda, _em: Date.now() });
   if (_salaFlushTimer) clearTimeout(_salaFlushTimer);
   _salaFlushTimer = setTimeout(() => { _salaFlushTimer = null; offlineFlush(); }, 2000);
 }
@@ -4878,8 +4880,12 @@ function mergeRemoto(remoto, periodoFrom) {
   leads.forEach((l, i) => { idxMap[String(l.id)] = i; });
   // Monta set de ids que existem no Sheets para detectar leads faltantes
   const remotosIds = new Set(remoto.map(r => String(r.id)));
-  const salaPendentes = new Set(JSON.parse(localStorage.getItem(OFFLINE_KEY) || '[]')
-    .filter(x => x._action === 'update_sala').map(x => String(x.id)));
+  // v2.50: marcação na fila só vale contra a planilha se foi feita NESTE aparelho nas últimas 24h
+  const salaPendentes = new Map();
+  JSON.parse(localStorage.getItem(OFFLINE_KEY) || '[]')
+    .filter(x => x && x._action === 'update_sala').forEach(x => salaPendentes.set(String(x.id), x));
+  const _recente = x => x && x._em && (Date.now() - x._em) < MARCACAO_VALE_MS;
+  const vencidas = new Set();
   let changed = false;
   remoto.forEach(r => {
     r.date = normalizarDate(r.date, r.id);
@@ -4909,16 +4915,16 @@ function mergeRemoto(remoto, periodoFrom) {
       const local = leads[idxMap[key]];
       if (!local._synced) { local._synced = true; changed = true; }
       if (!r._ans && local._ans) r._ans = local._ans;
-      // sincroniza emSala, tipoSala e venda do remoto para o local (remoto é mais recente)
-      // FIX v2.25: se há marcação deste lead ainda na fila, o local é o mais recente
-      if (salaPendentes.has(key)) return;
-      if (r.emSala && !local.emSala) { local.emSala = true; changed = true; }
-      if (r.tipoSala && r.tipoSala !== local.tipoSala) { local.tipoSala = r.tipoSala; changed = true; }
-      if (r.venda && !local.venda)   { local.venda = true; changed = true; }
-      // se local tem emSala=true mas remoto está false → reenviar via fila (com confirmação)
-      if (local.emSala && !r.emSala) {
-        offlineEnqueue({ _action: 'update_sala', id: local.id, emSala: true, tipoSala: local.tipoSala || null, venda: !!local.venda });
-      }
+      // sincroniza emSala, tipoSala e venda: a planilha manda (inclusive quando o líder desmarcou),
+      // salvo se há marcação deste lead feita neste aparelho nas últimas 24h ainda na fila.
+      // v2.50: antes, local emSala=true com planilha false voltava para a fila e "ressuscitava" a marcação.
+      const pend = salaPendentes.get(key);
+      if (_recente(pend)) return;
+      if (pend) vencidas.add(key); // marcação velha na fila: a planilha vence
+      const rEm = !!r.emSala, rTipo = rEm ? (r.tipoSala || null) : null, rVenda = !!r.venda;
+      if (!!local.emSala !== rEm) { local.emSala = rEm; changed = true; }
+      if ((local.tipoSala || null) !== rTipo && (rTipo || !rEm)) { local.tipoSala = rTipo; changed = true; }
+      if (!!local.venda !== rVenda) { local.venda = rVenda; changed = true; }
     }
   });
   // Leads locais que não chegaram ao Sheets — só reenviar os que estão DENTRO do período buscado
@@ -4934,6 +4940,11 @@ function mergeRemoto(remoto, periodoFrom) {
         reenviados++;
       }
     }
+  }
+  if (vencidas.size) {
+    const q = JSON.parse(localStorage.getItem(OFFLINE_KEY) || '[]').filter(x => !(x && x._action === 'update_sala' && vencidas.has(String(x.id)) && !_recente(x)));
+    localStorage.setItem(OFFLINE_KEY, JSON.stringify(q));
+    qqAtualizarAvisoFila();
   }
   if (changed) _salvarLeads();
   return changed;
@@ -7788,7 +7799,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.49';
+const APP_VERSAO = '2.50';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
@@ -7865,6 +7876,20 @@ function offlineEnqueue(lead, naoSobrescrever) {
 
 // Marcação cuja pesquisa ainda não está na planilha: tenta de novo. Se a pesquisa ainda
 // está na fila deste celular, espera por ela; senão desiste depois de ~20 min (40 tentativas).
+const MARCACAO_VALE_MS = 24 * 60 * 60 * 1000;
+const MARCACAO_LOTE = 50;
+// v2.50: na primeira abertura desta versão, tira da fila as marcações antigas (sem hora de quando foram feitas):
+// eram recolocadas pelo mergeRemoto e ficavam reenviando. Fica só a de pesquisa que ainda está na fila deste aparelho.
+(function _limparFilaAntiga() {
+  try {
+    if (localStorage.getItem('yv_fila_limpa_v250')) return;
+    const q = JSON.parse(localStorage.getItem(OFFLINE_KEY) || '[]');
+    const pesqNaFila = new Set(q.filter(x => x && x.id && !x._action).map(x => String(x.id)));
+    const fica = q.filter(x => !(x && x._action === 'update_sala' && !x._em && !pesqNaFila.has(String(x.id))));
+    if (fica.length !== q.length) { localStorage.setItem(OFFLINE_KEY, JSON.stringify(fica)); console.info('[QQ] fila: ' + (q.length - fica.length) + ' marcações antigas removidas sem enviar'); }
+    localStorage.setItem('yv_fila_limpa_v250', new Date().toISOString());
+  } catch (e) {}
+})();
 function _reenfileirarMarcacaoSemPesquisa(u) {
   const t = (u._tentativas || 0) + 1;
   let pesquisaNaFila = false;
@@ -7900,21 +7925,25 @@ function offlineFlush() {
         }
       } else { offlineEnqueue(lead, true); }
     }
-    // Marcações de sala: 1 chamada em lote
-    if (salas.length) {
-      const payload = salas.length === 1 ? salas[0]
-        : { _action: 'update_sala_batch', updates: salas.map(u => ({ id: u.id, emSala: u.emSala, tipoSala: u.tipoSala, venda: u.venda })) };
+    // Marcações de sala: em lotes de até 50 por chamada (v2.50: um lote grande demais estourava o tempo e voltava inteiro para a fila)
+    for (let i = 0; i < salas.length; i += MARCACAO_LOTE) {
+      const lote = salas.slice(i, i + MARCACAO_LOTE);
+      const payload = lote.length === 1 ? { ...lote[0], _em: undefined, _tentativas: undefined }
+        : { _action: 'update_sala_batch', updates: lote.map(u => ({ id: u.id, emSala: u.emSala, tipoSala: u.tipoSala, venda: u.venda })) };
       const res = await API.postJson(payload).catch(() => null);
-      _emEnvio.marc = 0;
+      _emEnvio.marc = Math.max(0, _emEnvio.marc - lote.length);
       const ok = res && (res.status === 'ok' || res.status === 'duplicate');
-      if (res && res.status === 'not_found') salas.forEach(_reenfileirarMarcacaoSemPesquisa);
-      else if (!ok) salas.forEach(u => offlineEnqueue(u, true));
+      if (res && res.status === 'not_found') lote.forEach(_reenfileirarMarcacaoSemPesquisa);
+      else if (res && res.code === 'proibido') console.warn('Marcação recusada (sem permissão), descartada', lote[0].id); // v2.50: não reenviar para sempre
+      else if (!ok) lote.forEach(u => offlineEnqueue(u, true));
       else if (Array.isArray(res.not_found_ids) && res.not_found_ids.length) {
         // v2.32: o servidor diz quais marcações não acharam a pesquisa — guarda para tentar de novo
         const semPesquisa = new Set(res.not_found_ids.map(String));
-        salas.filter(u => semPesquisa.has(String(u.id))).forEach(_reenfileirarMarcacaoSemPesquisa);
+        lote.filter(u => semPesquisa.has(String(u.id))).forEach(_reenfileirarMarcacaoSemPesquisa);
       }
+      if (res && res.code && CODIGOS_CRACHA_RECUSADO.includes(res.code)) { salas.slice(i + MARCACAO_LOTE).forEach(u => offlineEnqueue(u, true)); break; }
     }
+    _emEnvio.marc = 0;
     _flushEmAndamento = false;
     if (salvouAlgo) { _salvarLeads(); renderHistList(); }
     qqAtualizarAvisoFila();
