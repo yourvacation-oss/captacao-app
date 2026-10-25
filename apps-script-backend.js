@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════
 // Your Vacation — Qualificador de Captação
-// Google Apps Script Backend — v23
+// Google Apps Script Backend — v24
 // Cole este código em: Planilha > Extensões > Apps Script
 // Depois: Implantar > Gerenciar implantações > Editar > Nova versão > Implantar
 // ═══════════════════════════════════════════════════════
@@ -22,6 +22,11 @@ const SALA_SHEETS = {
   'Vest Casa':        'Atibaia',
   'Entrada Outlet':   'Atibaia',
   'Corredor Outlet':  'Atibaia',
+  // v24: Ubatuba — uma aba por ponto, com o prefixo (não confunde com "Porta da sala" de Atibaia)
+  'Ubatuba Porta de Sala':       'Ubatuba Porta de Sala',
+  'Ubatuba Praça da Baleia':     'Ubatuba Praça da Baleia',
+  'Ubatuba Aquário':             'Ubatuba Aquário',
+  'Ubatuba Feira de Artesanato': 'Ubatuba Feira de Artesanato',
 };
 const DEFAULT_SHEET = 'Alta Vista'; // fallback — evita criação de abas novas
 
@@ -391,6 +396,7 @@ const SALA_OPERACAO = {
   'Thermas SP': 'São Pedro', 'SPTR': 'São Pedro', 'São Pedro': 'São Pedro', 'São Pedro Resort': 'São Pedro', 'Externo SP': 'São Pedro', 'Thermas SP (Parque)': 'São Pedro',
   'Atibaia': 'Atibaia', 'Porta da sala': 'Atibaia', 'Vest Casa': 'Atibaia', 'Entrada Outlet': 'Atibaia', 'Corredor Outlet': 'Atibaia',
   'Frente da showroom': 'Ribeirão Preto', 'Praça de alimentação': 'Ribeirão Preto', 'Estacionamento': 'Ribeirão Preto', 'Carrossel': 'Ribeirão Preto', 'Parquinho': 'Ribeirão Preto',
+  'Ubatuba Porta de Sala': 'Ubatuba', 'Ubatuba Praça da Baleia': 'Ubatuba', 'Ubatuba Aquário': 'Ubatuba', 'Ubatuba Feira de Artesanato': 'Ubatuba', // v24
 };
 function _segredoCracha() {
   const props = PropertiesService.getScriptProperties();
@@ -883,7 +889,7 @@ function criarAbaEquipe() {
 // ── GESTÃO DA EQUIPE PELO APP (v11) ──
 // Toda ação vem com quem pede (por) e a senha dele (porSenha), conferida aqui.
 // CEO gerencia todas as operações; líder e sublíder só a própria.
-const OPERACOES_EQUIPE = ['Caldas Novas', 'São Pedro', 'Atibaia', 'Ribeirão Preto'];
+const OPERACOES_EQUIPE = ['Caldas Novas', 'São Pedro', 'Atibaia', 'Ribeirão Preto', 'Ubatuba'];
 const CARGOS_EQUIPE = ['captador', 'sublider', 'lider', 'supervisor_adm', 'ceo'];
 const CARGOS_GESTORES = ['ceo', 'lider', 'sublider'];
 
@@ -1315,6 +1321,13 @@ function _doGet(e, user) {
   } catch (err) {
     return jsonResponse({ status: 'error', message: err.message });
   }
+}
+
+// v24: RODAR UMA VEZ (opcional) — cria já as 4 abas de Ubatuba com o cabeçalho.
+// Sem rodar, cada aba nasce sozinha na primeira pesquisa daquele ponto.
+function criarAbasUbatuba() {
+  Object.keys(SALA_SHEETS).filter(k => /^Ubatuba /.test(k)).forEach(k => getOrCreateSheetByName(SALA_SHEETS[k]));
+  Logger.log('Abas de Ubatuba prontas.');
 }
 
 function migrarTodasAsAbas() {

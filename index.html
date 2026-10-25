@@ -1582,6 +1582,11 @@ const CONFIG = {
     { id: 'vest-casa',          nome: 'Vest Casa',     cidade: 'Atibaia', modos: [], sheetName: 'Vest Casa',     operacao: 'Atibaia', ddpHotel: null },
     { id: 'entrada-outlet',     nome: 'Entrada Outlet',cidade: 'Atibaia', modos: [], sheetName: 'Entrada Outlet',operacao: 'Atibaia', ddpHotel: null },
     { id: 'corredor-outlet',    nome: 'Corredor Outlet',cidade: 'Atibaia',modos: [], sheetName: 'Corredor Outlet',operacao: 'Atibaia',ddpHotel: null },
+    // Ubatuba (v2.48): nome já com o prefixo — é o que vai na coluna Sala e o nome da aba (não confunde com "Porta da sala" de Atibaia)
+    { id: 'ubatuba-porta-sala', nome: 'Ubatuba Porta de Sala',       cidade: 'Ubatuba', modos: [], sheetName: 'Ubatuba Porta de Sala',       operacao: 'Ubatuba', ddpHotel: null },
+    { id: 'ubatuba-baleia',     nome: 'Ubatuba Praça da Baleia',     cidade: 'Ubatuba', modos: [], sheetName: 'Ubatuba Praça da Baleia',     operacao: 'Ubatuba', ddpHotel: null },
+    { id: 'ubatuba-aquario',    nome: 'Ubatuba Aquário',             cidade: 'Ubatuba', modos: [], sheetName: 'Ubatuba Aquário',             operacao: 'Ubatuba', ddpHotel: null },
+    { id: 'ubatuba-feira',      nome: 'Ubatuba Feira de Artesanato', cidade: 'Ubatuba', modos: [], sheetName: 'Ubatuba Feira de Artesanato', operacao: 'Ubatuba', ddpHotel: null },
     { id: 'frente-showroom',    nome: 'Frente da showroom',     cidade: 'Ribeirão Preto', modos: [], sheetName: 'Frente da showroom',     operacao: 'Ribeirão Preto', ddpHotel: null },
     { id: 'praca-alimentacao',  nome: 'Praça de alimentação',  cidade: 'Ribeirão Preto', modos: [], sheetName: 'Praça de alimentação',  operacao: 'Ribeirão Preto', ddpHotel: null },
     { id: 'estacionamento',     nome: 'Estacionamento',         cidade: 'Ribeirão Preto', modos: [], sheetName: 'Estacionamento',         operacao: 'Ribeirão Preto', ddpHotel: null },
@@ -1591,13 +1596,15 @@ const CONFIG = {
   // Salas que alimentam o DDP automaticamente (captadores marcam tipo+venda no histórico)
   salasDdpAuto: ['Alta Vista', 'Atrium', 'Marina', 'Toulon', 'SPTR', 'Thermas SP'],
   // Salas onde aparece apenas 🤝 venda (sem chips de tipo)
-  salasDdpVenda: ['Atibaia', 'Thermas SP'],
+  salasDdpVenda: ['Atibaia', 'Thermas SP', 'Ubatuba Porta de Sala', 'Ubatuba Praça da Baleia', 'Ubatuba Aquário', 'Ubatuba Feira de Artesanato'],
   // Pontos de Caldas Novas (captadores escolhem ao iniciar)
   salasCaldas: ['Alta Vista', 'Atrium', 'Marina', 'Toulon', 'Externo'],
   // Operações de São Pedro (captadores escolhem a sala ao iniciar)
   salasSaoPedro: ['Thermas SP', 'SPTR', 'Externo'],
   // Pontos de Atibaia (captadores escolhem ao iniciar)
   salasAtibaia: ['Porta da sala', 'Vest Casa', 'Entrada Outlet', 'Corredor Outlet'],
+  // Pontos de Ubatuba (captadores escolhem ao iniciar)
+  salasUbatuba: ['Ubatuba Porta de Sala', 'Ubatuba Praça da Baleia', 'Ubatuba Aquário', 'Ubatuba Feira de Artesanato'],
   // Pontos de Ribeirão Preto (captadores escolhem ao iniciar)
   salasRibeirao: ['Frente da showroom', 'Praça de alimentação', 'Estacionamento', 'Carrossel', 'Parquinho'],
   webhookUrl: 'https://script.google.com/macros/s/AKfycbwdGNL10ZtmZ3TgsZDJVyBlGF9NB7WR1PSzeWb1_ifgtB7bSkl5QjqUsLpAoDrJ3v_dKQ/exec',
@@ -1929,6 +1936,12 @@ function equipeVerificarSessao() {
 function _marcarLogin() { try { localStorage.setItem('yv_login_em', new Date().toISOString()); } catch (e) {} }
 setInterval(equipeSincronizar, 30 * 60 * 1000);
 window.addEventListener('online', () => equipeSincronizar().then(equipeVerificarSessao));
+// v2.48: nas listas de nomes, líder/sublíder vê só a própria operação (e as de suporte); CEO e supervisão veem todos
+function _membroDaMinhaOperacao(m) {
+  if (!captador || ['ceo','supervisor_adm'].includes(captador.cargo) || !captador.operacao) return true;
+  if (!m.operacao || getSuporteTemp(m.nome)) return true;
+  return m.operacao === captador.operacao || getOperacoesExtras(captador).includes(m.operacao);
+}
 function temAcessoTotal(c) {
   return c && ['sublider','lider','ceo','supervisor_adm'].includes(c.cargo);
 }
@@ -1981,12 +1994,14 @@ function getTodasSalas() {
   const extras = JSON.parse(localStorage.getItem('yv_salas_extras') || '[]');
   return [...CONFIG.salas, ...extras];
 }
-const OPERACOES = ['Caldas Novas', 'São Pedro', 'Atibaia', 'Ribeirão Preto'];
+const OPERACOES = ['Caldas Novas', 'São Pedro', 'Atibaia', 'Ribeirão Preto', 'Ubatuba'];
+const OPERACOES_SEM_DDP = ['Ubatuba']; // v2.48: Ubatuba ainda sem DDP
 const SALAS_POR_OPERACAO = {
   'Caldas Novas':     ['Alta Vista', 'Marina', 'Atrium', 'Toulon', 'Externo'],
   'São Pedro':        ['Thermas SP', 'SPTR', 'Externo SP'],
   'Atibaia':          ['Porta da sala', 'Vest Casa', 'Entrada Outlet', 'Corredor Outlet'],
   'Ribeirão Preto':   ['Frente da showroom', 'Praça de alimentação', 'Estacionamento', 'Carrossel', 'Parquinho'],
+  'Ubatuba':          ['Ubatuba Porta de Sala', 'Ubatuba Praça da Baleia', 'Ubatuba Aquário', 'Ubatuba Feira de Artesanato'],
 };
 // Retorna salas filtradas pela operação selecionada (considera operação do login também)
 function getSalasVisiveis(operacaoFiltro) {
@@ -2244,7 +2259,7 @@ function afterLogin() {
   else navEq.classList.add('hidden');
   if (isLider) navTR.classList.remove('hidden');
   else navTR.classList.add('hidden');
-  const temDdp = isLider && (captador.cargo === 'ceo' || captador.operacao !== null);
+  const temDdp = isLider && (captador.cargo === 'ceo' || (captador.operacao !== null && !OPERACOES_SEM_DDP.includes(captador.operacao)));
   if (temDdp) navDD.classList.remove('hidden');
   else navDD.classList.add('hidden');
   // v2.47: captador de operação com hotel de penetração vê "Minha penetração"
@@ -2746,6 +2761,7 @@ function calcResult() {
   if (salaId === 'vest-casa')          return calcAtibaia();
   if (salaId === 'entrada-outlet')     return calcAtibaia();
   if (salaId === 'corredor-outlet')    return calcAtibaia();
+  if (salaId === 'ubatuba-porta-sala' || salaId === 'ubatuba-baleia' || salaId === 'ubatuba-aquario' || salaId === 'ubatuba-feira') return calcUbatuba();
   if (salaId === 'frente-showroom')    return calcRibeiraoPreto();
   if (salaId === 'praca-alimentacao')  return calcRibeiraoPreto();
   if (salaId === 'estacionamento')     return calcRibeiraoPreto();
@@ -2755,9 +2771,13 @@ function calcResult() {
   if (!salaId && salaAtual && salaAtual.nome) {
     const _nome = salaAtual.nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     if (_nome.includes('atibaia'))                          return calcAtibaia();
+    if (_nome.includes('ubatuba'))                          return calcUbatuba();
     if (_nome.includes('thermas') || _nome.includes('sptr') || _nome.includes('sao pedro') || _nome.includes('são pedro') || _nome.includes('externo sp')) return calcSaoPedro();
     if (_nome.includes('alta vista') || _nome.includes('atrium') || _nome.includes('marina') || _nome.includes('externo') || _nome.includes('toulon')) return calcAltaVista();
   }
+  // v2.48: sala digitada por captador de Atibaia ou Ubatuba segue a regra da operação
+  if (captador && captador.operacao === 'Ubatuba') return calcUbatuba();
+  if (captador && captador.operacao === 'Atibaia') return calcAtibaia();
   return { verdict:'NQ', rows:[{i:'⚠️', l:'Sala', v:'Sala não reconhecida'}], rule:null, perfil:null };
 }
 
@@ -3202,8 +3222,75 @@ function _calcSaoPedroAteOutubro() {
   }
 }
 
-// ── ATIBAIA ─────────────────────────────────
+// ── ATIBAIA E UBATUBA A PARTIR DE 25/10/2026 (v2.48) ──
+// Pela data da pesquisa; antes disso Atibaia segue _calcAtibaiaAteOutubro (regra antiga).
+// Casal (casado ou UE ≥1 ano, um dos dois 30–65): Perfil 1 = R$15k+ (dispensa carro e cartão);
+// Perfil 3 = R$10k+ e carro 2010+ (com ou sem cartão). Solteiro: R$8k+, carro 2016+ (ano exato), cartão, 30–65.
+const ATIBAIA_NOVAS_REGRAS_DESDE = '2026-10-25';
+function regrasNovasAtibaia(iso) { return (iso || todayISO()) >= ATIBAIA_NOVAS_REGRAS_DESDE; }
 function calcAtibaia() {
+  if (regrasNovasAtibaia()) return calcAtibaiaUbatuba('Atibaia');
+  return _calcAtibaiaAteOutubro();
+}
+function calcUbatuba() { return calcAtibaiaUbatuba('Ubatuba'); }
+function calcAtibaiaUbatuba(op) {
+  const a = ans;
+  const { rNum, isSol, isNoivos, relOk, idOk, cartaoS } = _base(a);
+  // ano exato digitado (a faixa 2014–2020 contava 2014 e 2015 como 2018)
+  const ano = (typeof a.anoCarro === 'number') ? a.anoCarro : carroAno(a.carro);
+  const anoTxt = ano > 0 ? String(ano) : 'Sem carro';
+  if (isNoivos) return _nqNoivos();
+
+  if (isSol) {
+    const ok = rNum >= 8000 && ano >= 2016 && idOk && cartaoS;
+    if (ok) return { verdict:'Q', perfil:'Solteiro/Divorciado — ' + op, rule:null, rows:[
+      {i:'✅', l:'Perfil',  v:'Solteiro / Divorciado'},
+      {i:'✅', l:'Renda',   v:rendaStr(a.renda)},
+      {i:'✅', l:'Idade',   v:'30–65 anos'},
+      {i:'✅', l:'Veículo', v:anoTxt},
+      {i:'✅', l:'Cartão',  v:'Sim'},
+    ]};
+    return { verdict:'NQ', perfil:null, rule:null, rows:[
+      _row(rNum >= 8000, 'Renda',   rNum >= 8000 ? rendaStr(a.renda) : 'Mínimo R$8.000'),
+      _row(idOk,         'Idade',   idOk ? '30–65 anos' : 'Exige 30–65 anos'),
+      _row(ano >= 2016,  'Veículo', ano >= 2016 ? anoTxt : anoTxt + ' — mínimo 2016'),
+      _row(cartaoS,      'Cartão',  cartaoS ? 'Sim' : 'Obrigatório'),
+    ]};
+  }
+
+  if (!relOk) return { verdict:'NQ', perfil:null, rule:null, rows:[
+    {i:'⚠️', l:'Relacionamento', v: a.tipo==='uniao' ? 'União estável < 1 ano — NQ' : 'Exige casado ou UE ≥1 ano'},
+  ]};
+  if (!idOk) return { verdict:'NQ', perfil:null, rule:null, rows:[
+    {i:'⚠️', l:'Idade', v:'Exige 30–65 anos (um do casal)'},
+  ]};
+
+  // Perfil 1: R$15k+ dispensa veículo e cartão
+  if (rNum >= 15000) return { verdict:'Q', perfil:'Casal — ' + op + ' Perfil 1 (R$15k+, dispensa veículo e cartão)', rule:null, rows:[
+    {i:'✅', l:'Renda',          v:rendaStr(a.renda)},
+    {i:'✅', l:'Relacionamento', v:_relLabel(a)},
+    {i:'✅', l:'Idade',          v:'30–65 anos (um do casal)'},
+    {i:'➞',  l:'Veículo',        v:'Dispensado (R$15k+)'},
+    {i:'➞',  l:'Cartão',         v:'Dispensado (R$15k+)'},
+  ]};
+  // Perfil 3: R$10k+ e carro 2010+, com ou sem cartão
+  if (rNum >= 10000 && ano >= 2010) return { verdict:'Q', perfil:'Casal — ' + op + ' Perfil 3 (R$10k+, carro 2010+)', rule:null, rows:[
+    {i:'✅', l:'Renda',          v:rendaStr(a.renda)},
+    {i:'✅', l:'Relacionamento', v:_relLabel(a)},
+    {i:'✅', l:'Idade',          v:'30–65 anos (um do casal)'},
+    {i:'✅', l:'Veículo',        v:anoTxt},
+    {i:'➞',  l:'Cartão',         v:'Não exigido'},
+  ]};
+
+  return { verdict:'NQ', perfil:null, rule:null, rows:[
+    _row(rNum >= 10000, 'Renda',   rNum >= 10000 ? rendaStr(a.renda) : rendaStr(a.renda) + ' — mínimo R$10.000'),
+    _row(ano >= 2010,   'Veículo', ano >= 2010 ? anoTxt : anoTxt + ' — mínimo 2010'),
+    {i:'💡', l:'Regra', v:'R$15k+ (sem exigir carro) ou R$10k+ com carro 2010+'},
+  ]};
+}
+
+// ── ATIBAIA ATÉ 24/10/2026 (regra antiga, só para pesquisas anteriores) ──
+function _calcAtibaiaAteOutubro() {
   const a = ans;
   const { rNum, cAno, isSol, isNoivos, relOk, idOk, cartaoS } = _base(a);
 
@@ -3492,6 +3579,12 @@ function startQuiz() {
     hideAll(); show('screenSala');
     return;
   }
+  // Captadores de Ubatuba → escolhem ponto de captação
+  if (captador && captador.operacao === 'Ubatuba' && !captador.sala) {
+    renderSalaUbatubaScreen();
+    hideAll(); show('screenSala');
+    return;
+  }
   // Captadores de Ribeirão Preto → escolhem ponto de captação
   if (captador && captador.operacao === 'Ribeirão Preto' && !captador.sala) {
     renderSalaRibeiraoScreen();
@@ -3556,6 +3649,26 @@ function renderSalaAtibaiaScreen() {
       <div class="sala-chip-icon">${icons[nome] || '📍'}</div>
       <div class="sala-chip-label">${nome}</div>
       <div class="sala-chip-sub">${descs[nome] || ''}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('fieldOutraSala').value = '';
+  document.getElementById('btnIniciarQuiz').disabled = true;
+  const title = document.getElementById('salaTitulo');
+  if (title) title.textContent = '📍 Qual ponto você está hoje?';
+  const sub = document.getElementById('salaSub');
+  if (sub) sub.textContent = 'Selecione onde você está prospectando agora';
+}
+
+// Tela de seleção de ponto para captadores de Ubatuba (v2.48)
+function renderSalaUbatubaScreen() {
+  const chips = document.getElementById('salaChips');
+  const icons = { 'Ubatuba Porta de Sala': '🚪', 'Ubatuba Praça da Baleia': '🐋', 'Ubatuba Aquário': '🐠', 'Ubatuba Feira de Artesanato': '🧺' };
+  chips.innerHTML = CONFIG.salasUbatuba.map(nome => {
+    const cfg = CONFIG.salas.find(s => s.nome === nome && s.operacao === 'Ubatuba');
+    return `<div class="sala-chip" data-id="${cfg.id}" data-nome="${nome}" onclick="pickSala(this,this.dataset.id,this.dataset.nome)">
+      <div class="sala-chip-icon">${icons[nome] || '📍'}</div>
+      <div class="sala-chip-label">${nome.replace(/^Ubatuba /, '')}</div>
+      <div class="sala-chip-sub">Ubatuba</div>
     </div>`;
   }).join('');
   document.getElementById('fieldOutraSala').value = '';
@@ -4788,6 +4901,7 @@ function renderCdpFiltros() {
     // independente da ordem que foram cadastrados no CONFIG.
     const todos = todosOsMembros()
       .filter(m => ['captador','sublider','lider'].includes(m.cargo) || !m.cargo || !!getSuporteTemp(m.nome))
+      .filter(_membroDaMinhaOperacao)
       .map(m => ({ ...m, _sortKey: (m.nome || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase() }))
       .sort((a, b) => a._sortKey.localeCompare(b._sortKey, 'pt-BR'));
     html += '<select class="filtro-select" onchange="setCdpFiltro(\'captador\',this.value)">';
@@ -5139,7 +5253,8 @@ function renderTrFiltros() {
     html += '<select class="filtro-select" onchange="setTrFiltro(\'captador\',this.value)">';
     html += `<option value="todos"${trFiltro.captador==='todos'?' selected':''}>Todos captadores</option>`;
     const caps = equipeAtual()
-      .filter(c => c.cargo === 'captador');
+      .filter(c => c.cargo === 'captador')
+      .filter(_membroDaMinhaOperacao);
     caps.forEach(c => {
       html += `<option value="${c.nome}"${trFiltro.captador===c.nome?' selected':''}>${c.nome.split(' ')[0]}</option>`;
     });
@@ -7590,7 +7705,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.47';
+const APP_VERSAO = '2.48';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
