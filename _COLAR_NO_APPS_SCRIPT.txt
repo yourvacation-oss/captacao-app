@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════
 // Your Vacation — Qualificador de Captação
-// Google Apps Script Backend — v21
+// Google Apps Script Backend — v22
 // Cole este código em: Planilha > Extensões > Apps Script
 // Depois: Implantar > Gerenciar implantações > Editar > Nova versão > Implantar
 // ═══════════════════════════════════════════════════════
@@ -475,6 +475,89 @@ function _salaECaptador(sheet, row) {
   const v = sheet.getRange(row, 1, 1, c.n).getValues()[0];
   return { sala: c.iS >= 0 ? (v[c.iS] || '') : '', captador: c.iC >= 0 ? (v[c.iC] || '') : '' };
 }
+// ── MARCAÇÕES DE SALA EM DUAS FASES (v22) ──
+// Antes: para cada marcação, lia a linha (_podeMarcar) e gravava célula por célula. Cada leitura
+// depois de uma gravação obriga o Google a salvar tudo antes de ler, e um lote de 50 levava minutos.
+// Agora: fase 1 só lê (acha as linhas, lê Sala/Captador e confere permissão);
+// fase 2 só grava, uma chamada por linha (EmSala, TipoSala e Venda juntas).
+const _cabecalhoCache = {};
+function _cabecalhoDe(sheet) {
+  const n = sheet.getName();
+  if (!_cabecalhoCache[n]) _cabecalhoCache[n] = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  return _cabecalhoCache[n];
+}
+// Lê as linhas pedidas de uma aba (colunas Captador..Venda): um bloco só se estiverem perto, senão linha a linha
+function _lerLinhasParaMarcar(sheet, linhas) {
+  const cab = _cabecalhoDe(sheet);
+  const cols = ['Captador', 'Sala', 'EmSala', 'TipoSala', 'Venda'].map(c => cab.indexOf(c)).filter(i => i >= 0);
+  const c0 = Math.min.apply(null, cols), c1 = Math.max.apply(null, cols), nc = c1 - c0 + 1;
+  const ord = Array.from(new Set(linhas)).sort((a, b) => a - b);
+  const out = {};
+  const guardar = (row, vals) => { const v = {}; cab.forEach((nome, i) => { if (i >= c0 && i <= c1) v[nome] = vals[i - c0]; }); out[row] = v; };
+  if (!ord.length) return out;
+  const min = ord[0], max = ord[ord.length - 1];
+  if (max - min + 1 <= 3000) {
+    const bloco = sheet.getRange(min, c0 + 1, max - min + 1, nc).getValues();
+    ord.forEach(r => guardar(r, bloco[r - min]));
+  } else {
+    ord.forEach(r => guardar(r, sheet.getRange(r, c0 + 1, 1, nc).getValues()[0]));
+  }
+  return out;
+}
+// Grava uma marcação: EmSala, TipoSala e Venda numa chamada só (colunas vizinhas); Sala à parte se vier
+function _gravarMarcacao(sheet, row, v) {
+  const cab = _cabecalhoDe(sheet);
+  const iE = cab.indexOf('EmSala'), iT = cab.indexOf('TipoSala'), iV = cab.indexOf('Venda');
+  if (iE >= 0 && iT === iE + 1 && iV === iE + 2) {
+    sheet.getRange(row, iE + 1, 1, 3).setValues([[v.EmSala, v.TipoSala, v.Venda]]);
+  } else {
+    if (iE >= 0) sheet.getRange(row, iE + 1).setValue(v.EmSala);
+    if (iT >= 0) sheet.getRange(row, iT + 1).setValue(v.TipoSala);
+    if (iV >= 0) sheet.getRange(row, iV + 1).setValue(v.Venda);
+  }
+  const iS = cab.indexOf('Sala');
+  if (v.Sala !== undefined && iS >= 0) sheet.getRange(row, iS + 1).setValue(v.Sala);
+}
+// marcacoes: [{ id, emSala, tipoSala, venda, sala }]. parcial=true (GET): campo ausente mantém o valor da planilha.
+function marcarSalas(marcacoes, user, parcial) {
+  const abas = abasDePesquisas();
+  const res = { ok: 0, not_found: [], proibidos: [], errors: 0, okIds: [] };
+  // Fase 1 — só leitura
+  const alvos = [], porAba = {};
+  marcacoes.forEach(u => {
+    for (const sheet of abas) {
+      const row = findRowById(sheet, u.id);
+      if (row > 0) {
+        alvos.push({ sheet, row, u });
+        const n = sheet.getName();
+        (porAba[n] = porAba[n] || { sheet, rows: [] }).rows.push(row);
+        return;
+      }
+    }
+    res.not_found.push(String(u.id));
+  });
+  const lidas = {};
+  Object.keys(porAba).forEach(n => { lidas[n] = _lerLinhasParaMarcar(porAba[n].sheet, porAba[n].rows); });
+  const gravar = [];
+  alvos.forEach(t => {
+    const atual = lidas[t.sheet.getName()][t.row] || {};
+    if (!_podeGravar(user, _opDaPesquisa(atual.Sala, atual.Captador), atual.Captador)) { res.proibidos.push(String(t.u.id)); return; }
+    const u = t.u, campo = (val, conv, velho) => (parcial && val === undefined) ? velho : conv(val);
+    gravar.push({ t, v: {
+      EmSala:   campo(u.emSala,   x => (x === true || x === 'true') ? 'SIM' : '', atual.EmSala),
+      TipoSala: campo(u.tipoSala, x => x || '', atual.TipoSala),
+      Venda:    campo(u.venda,    x => (x === true || x === 'true') ? 'SIM' : '', atual.Venda),
+      Sala:     u.sala !== undefined ? normalizarSalaDigitada(u.sala) : undefined,
+    } });
+  });
+  // Fase 2 — só gravação
+  gravar.forEach(g => {
+    try { _gravarMarcacao(g.t.sheet, g.t.row, g.v); res.ok++; res.okIds.push(String(g.t.u.id)); }
+    catch (e) { res.errors++; }
+  });
+  return res;
+}
+
 function _podeMarcar(u, sheet, row) { const x = _salaECaptador(sheet, row); return _podeGravar(u, _opDaPesquisa(x.sala, x.captador), x.captador); }
 
 function doPost(e) {
@@ -545,59 +628,15 @@ function _doPost(e, user) {
 
     // update_sala: atualiza EmSala, TipoSala e Venda de um lead existente
     if (data._action === 'update_sala') {
-      const ss = SpreadsheetApp.getActiveSpreadsheet();
-      const sheetsAlvo = abasDePesquisas();
-      for (const sheet of sheetsAlvo) {
-        const row = findRowById(sheet, data.id);
-        if (row > 0) {
-          if (!_podeMarcar(user, sheet, row)) return jsonResponse({ status: 'error', code: 'proibido', id: data.id });
-          const cabecalho = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-          const set = (col, val) => {
-            const i = cabecalho.indexOf(col);
-            if (i >= 0) sheet.getRange(row, i + 1).setValue(val);
-          };
-          set('EmSala',   data.emSala   ? 'SIM' : '');
-          set('TipoSala', data.tipoSala || '');
-          set('Venda',    data.venda    ? 'SIM' : '');
-          if (data.sala !== undefined) set('Sala', data.sala);
-          return jsonResponse({ status: 'ok', id: data.id });
-        }
-      }
-      return jsonResponse({ status: 'not_found', id: data.id });
+      const r = marcarSalas([data], user, false); // v22: duas fases
+      if (r.proibidos.length) return jsonResponse({ status: 'error', code: 'proibido', id: data.id });
+      if (r.not_found.length) return jsonResponse({ status: 'not_found', id: data.id });
+      return jsonResponse({ status: 'ok', id: data.id });
     }
 
     // update_sala_batch: atualiza N leads em 1 chamada (evita quota exceeded)
     if (data._action === 'update_sala_batch' && Array.isArray(data.updates)) {
-      const ss = SpreadsheetApp.getActiveSpreadsheet();
-      const sheetsAlvo = abasDePesquisas();
-      // Cache de cabeçalhos por sheet (evita releitura)
-      const cabecalhoCache = {};
-      sheetsAlvo.forEach(s => { cabecalhoCache[s.getName()] = s.getRange(1, 1, 1, s.getLastColumn()).getValues()[0]; });
-      const results = { ok: 0, not_found: [], proibidos: [], errors: 0 };
-      data.updates.forEach(u => {
-        try {
-          let found = false;
-          for (const sheet of sheetsAlvo) {
-            const row = findRowById(sheet, u.id);
-            if (row > 0) {
-              found = true;
-              if (!_podeMarcar(user, sheet, row)) { results.proibidos.push(String(u.id)); break; }
-              const cabecalho = cabecalhoCache[sheet.getName()];
-              const set = (col, val) => {
-                const i = cabecalho.indexOf(col);
-                if (i >= 0) sheet.getRange(row, i + 1).setValue(val);
-              };
-              set('EmSala',   u.emSala   ? 'SIM' : '');
-              set('TipoSala', u.tipoSala || '');
-              set('Venda',    u.venda    ? 'SIM' : '');
-              if (u.sala !== undefined) set('Sala', normalizarSalaDigitada(u.sala));
-              results.ok++;
-              break;
-            }
-          }
-          if (!found) results.not_found.push(String(u.id));
-        } catch (e) { results.errors++; }
-      });
+      const results = marcarSalas(data.updates, user, false); // v22: duas fases
       // not_found: quantidade (compatível com versões antigas); not_found_ids: quais marcações não acharam a pesquisa
       return jsonResponse({ status: 'ok', processed: data.updates.length, updated: results.ok, not_found: results.not_found.length, not_found_ids: results.not_found, proibido_ids: results.proibidos, errors: results.errors });
     }
@@ -1082,24 +1121,10 @@ function _doGet(e, user) {
 
     // ?_action=update_sala&id=...&sala=... — atualiza coluna Sala via GET
     if (params._action === 'update_sala') {
-      const sheetsAlvo = abasDePesquisas();
-      for (const sheet of sheetsAlvo) {
-        const row = findRowById(sheet, params.id);
-        if (row > 0) {
-          if (!_podeMarcar(user, sheet, row)) return jsonResponse({ status: 'error', code: 'proibido', id: params.id });
-          const cabecalho = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-          const set = (col, val) => {
-            const i = cabecalho.indexOf(col);
-            if (i >= 0) sheet.getRange(row, i + 1).setValue(val);
-          };
-          if (params.sala !== undefined) set('Sala', normalizarSalaDigitada(params.sala));
-          if (params.emSala !== undefined) set('EmSala', params.emSala === 'true' ? 'SIM' : '');
-          if (params.tipoSala !== undefined) set('TipoSala', params.tipoSala);
-          if (params.venda !== undefined) set('Venda', params.venda === 'true' ? 'SIM' : '');
-          return jsonResponse({ status: 'ok', id: params.id });
-        }
-      }
-      return jsonResponse({ status: 'not_found', id: params.id });
+      const r = marcarSalas([{ id: params.id, emSala: params.emSala, tipoSala: params.tipoSala, venda: params.venda, sala: params.sala }], user, true); // v22
+      if (r.proibidos.length) return jsonResponse({ status: 'error', code: 'proibido', id: params.id });
+      if (r.not_found.length) return jsonResponse({ status: 'not_found', id: params.id });
+      return jsonResponse({ status: 'ok', id: params.id });
     }
 
     // ?action=listarEquipe — lista da aba Equipe (o app guarda uma cópia no celular)
@@ -1905,6 +1930,40 @@ function _corrigirSaoPedroResort(aplicar) {
   });
   Logger.log((aplicar ? 'CORRIGIDO' : 'SIMULAÇÃO (nada alterado)') + ': ' + JSON.stringify(resumo));
   return resumo;
+}
+
+// DIAGNÓSTICO (v22): mede 50 marcações do jeito antigo e do novo, nas 50 últimas pesquisas da aba
+// "São Pedro", regravando os MESMOS valores (não muda nenhum dado). Rodar numa cópia da planilha.
+function medirMarcacoes() {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('São Pedro');
+  const cab = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0], n = sh.getLastRow();
+  const iId = cab.indexOf('ID'), iE = cab.indexOf('EmSala'), iT = cab.indexOf('TipoSala'), iV = cab.indexOf('Venda');
+  const marcacoes = sh.getRange(n - 49, 1, 50, cab.length).getValues().filter(r => r[iId])
+    .map(r => ({ id: String(r[iId]), emSala: r[iE] === 'SIM', tipoSala: r[iT] || '', venda: r[iV] === 'SIM' }));
+  const ceo = { nome: 'Diagnóstico', cargo: 'ceo', operacao: '' };
+  const limpar = () => [_indiceIds, _colunasCache, _cabecalhoCache].forEach(o => Object.keys(o).forEach(k => delete o[k]));
+  const mede = (rotulo, fn) => { limpar(); const a = Date.now(); fn(); SpreadsheetApp.flush(); const ms = Date.now() - a; Logger.log(rotulo + ': ' + (ms / 1000).toFixed(1) + ' s (' + marcacoes.length + ' marcações)'); return ms; };
+  const antes = mede('ANTES (v21: lê e grava alternado, célula por célula)', () => _marcarJeitoV21(marcacoes, ceo));
+  const depois = mede('DEPOIS (v22: duas fases, uma chamada por linha)', () => marcarSalas(marcacoes, ceo, false));
+  Logger.log('Ganho: ' + (antes / Math.max(depois, 1)).toFixed(0) + 'x mais rápido');
+}
+// Cópia do jeito da v21, só para o diagnóstico acima
+function _marcarJeitoV21(updates, user) {
+  const sheetsAlvo = abasDePesquisas();
+  const cabecalhoCache = {};
+  sheetsAlvo.forEach(s => { cabecalhoCache[s.getName()] = s.getRange(1, 1, 1, s.getLastColumn()).getValues()[0]; });
+  updates.forEach(u => {
+    for (const sheet of sheetsAlvo) {
+      const row = findRowById(sheet, u.id);
+      if (row > 0) {
+        if (!_podeMarcar(user, sheet, row)) break;
+        const cabecalho = cabecalhoCache[sheet.getName()];
+        const set = (col, val) => { const i = cabecalho.indexOf(col); if (i >= 0) sheet.getRange(row, i + 1).setValue(val); };
+        set('EmSala', u.emSala ? 'SIM' : ''); set('TipoSala', u.tipoSala || ''); set('Venda', u.venda ? 'SIM' : '');
+        break;
+      }
+    }
+  });
 }
 
 function jsonResponse(obj) {
