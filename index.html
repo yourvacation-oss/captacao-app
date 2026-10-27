@@ -1400,56 +1400,70 @@ const MSG_SENHA = {
 // crachá sem digitar a senha, se a senha pessoal deste celular já estiver na planilha.
 const CRACHA_KEY = 'yv_cracha';
 function qqCracha() { try { return localStorage.getItem(CRACHA_KEY) || ''; } catch (e) { return ''; } }
-function qqGuardarCracha(c) { if (!c) return; try { localStorage.setItem(CRACHA_KEY, c); } catch (e) {} _aguardandoLogin = false; setTimeout(() => { try { offlineFlush(); ddpOfflineFlush(); } catch (e) {} qqAtualizarAvisoFila(); }, 300); }
+function qqGuardarCracha(c) { if (!c) return; try { localStorage.setItem(CRACHA_KEY, c); } catch (e) {} setTimeout(() => { try { offlineFlush(); ddpOfflineFlush(); } catch (e) {} qqAtualizarAvisoFila(); }, 300); }
+// v2.51: TRAVA ÚNICA. Sem crachá, nada vai para a planilha (nem pesquisa, nem marcação, nem DDP, nem leitura).
+// Só passam a entrada/senha (equipe_*) e a lista pública da equipe. Assim um celular sem crachá não gera recusas.
+function qqEnvioLiberado() { return !!qqCracha(); }
+function _acaoSemCracha(payload) { return /^equipe_/.test(String(payload && payload._action || '')); }
+// Registro de quem abriu/fechou a tela de senha (vai junto em todo envio; a planilha mostra nas recusas)
+const TELA_LOG_KEY = 'yv_tela_log';
+function _telaLog(txt) {
+  try {
+    const a = JSON.parse(localStorage.getItem(TELA_LOG_KEY) || '[]');
+    a.push(new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' ' + txt);
+    while (a.length > 4) a.shift();
+    localStorage.setItem(TELA_LOG_KEY, JSON.stringify(a));
+  } catch (e) {}
+}
+function _telaLogTexto() { try { return JSON.parse(localStorage.getItem(TELA_LOG_KEY) || '[]').join(' · ').slice(-300); } catch (e) { return ''; } }
 function qqApagarCracha() { try { localStorage.removeItem(CRACHA_KEY); } catch (e) {} }
 function qqParamCracha() { const c = qqCracha(); return c ? 'cracha=' + encodeURIComponent(c) : ''; }
 // v2.49: todo envio diz quem mandou, a versão do app e quanto ainda está na fila (a planilha registra as recusas)
 function _comCracha(obj) {
   const c = qqCracha();
-  const extra = { _quem: _quemEstaNoCelular(), _v: APP_VERSAO, _fila: qqContarFila().total };
+  const extra = { _quem: _quemEstaNoCelular(), _v: APP_VERSAO, _fila: qqContarFila().total, _tela: _telaLogTexto() };
   return c ? { ...obj, ...extra, cracha: c } : { ...obj, ...extra };
 }
 function _urlComCracha(url) { const c = qqParamCracha(); return c ? url + (url.includes('?') ? '&' : '?') + c : url; }
-// v2.49: a planilha recusou o crachá (sem crachá, vencido, sessão antiga): abre NA HORA a tela de senha,
-// mesmo sem senha pessoal salva neste celular. Em paralelo tenta um crachá novo pela senha salva;
-// se conseguir, fecha a tela sozinho. Enquanto isso a fila não é reenviada (evita recusas repetidas).
+// v2.49/v2.51: a planilha recusou o crachá: apaga o crachá e abre NA HORA a tela de senha, que só fecha
+// quando a pessoa entra e a planilha devolve um crachá novo (_fecharTelaSenha). Sem troca automática.
 const CODIGOS_CRACHA_RECUSADO = ['sem_cracha', 'cracha_invalido', 'refazer_login'];
 const MSG_FILA_PARADA = 'Suas pesquisas não estão sendo enviadas. Entre de novo.';
-let _crachaEmAndamento = false;
-let _aguardandoLogin = false, _loginAbertoPorRecusa = false;
-function _verCodigoCracha(json) { if (json && CODIGOS_CRACHA_RECUSADO.includes(json.code)) qqCrachaRecusado(); }
-function qqCrachaRecusado() {
+function _verCodigoCracha(json) { if (json && CODIGOS_CRACHA_RECUSADO.includes(json.code)) qqCrachaRecusado(json.code); }
+function qqCrachaRecusado(code) {
   qqApagarCracha();
-  _aguardandoLogin = true;
+  _abrirTelaSenha('recusa ' + (code || ''));
+}
+// Logado (ou com nome salvo) e sem crachá: precisa entrar de novo
+function _precisaEntrar() { return !qqCracha() && !!_quemEstaNoCelular(); }
+let _fechouSemServidorEm = 0;
+function _abrirTelaSenha(motivo) {
   const tela = document.getElementById('screenLogin');
-  // a tela de senha pode já estar aberta (ex.: celular sem senha pessoal salva): só troca a mensagem
-  if (captador && tela.classList.contains('hidden')) { _loginAbertoPorRecusa = true; _pedirSenhaDeNovo(captador.nome); }
+  const jaAberta = !tela.classList.contains('hidden');
+  _telaLog('abriu: ' + motivo + (jaAberta ? ' (já aberta)' : ''));
+  if (captador && !jaAberta) _pedirSenhaDeNovo(captador.nome);
+  else if (captador && document.getElementById('pwPanel').classList.contains('hidden') && document.getElementById('criarSenhaPanel').classList.contains('hidden')) _pedirSenhaDeNovo(captador.nome);
   qqAtualizarAvisoFila();
-  if (captador && !_crachaEmAndamento) qqObterCracha(false);
+}
+// Único jeito de fechar a tela de senha: com crachá, ou sem internet/sem planilha (aí nada é enviado)
+function _fecharTelaSenha(motivo, semServidor) {
+  if (!qqCracha() && navigator.onLine && !semServidor) { _telaLog('NÃO fechou: ' + motivo + ' sem crachá'); return false; }
+  _telaLog('fechou: ' + motivo + (qqCracha() ? '' : (semServidor ? ' (planilha fora do ar, sem crachá)' : ' (sem internet, sem crachá)')));
+  if (!qqCracha()) _fechouSemServidorEm = Date.now();
+  document.getElementById('screenLogin').classList.add('hidden');
+  qqAtualizarAvisoFila();
+  return true;
+}
+// Logado, com internet e sem crachá com a tela fechada (entrou sem internet): abre de novo
+function _conferirTelaSemCracha(origem) {
+  if (!_precisaEntrar() || !navigator.onLine) return;
+  if (!document.getElementById('screenLogin').classList.contains('hidden')) return;
+  if (Date.now() - _fechouSemServidorEm < 5 * 60 * 1000) return; // planilha estava fora do ar: espera 5 min
+  _abrirTelaSenha(origem);
 }
 function _quemEstaNoCelular() {
   if (captador) return captador.nome;
   try { return loginSelectedNome || sessionStorage.getItem('yv_captador') || localStorage.getItem('yv_captador') || ''; } catch (e) { return ''; }
-}
-async function qqObterCracha(pedirSenhaSeFalhar) {
-  if (_crachaEmAndamento || !captador || !navigator.onLine || !API.ok()) return;
-  _crachaEmAndamento = true;
-  const nome = captador.nome;
-  try {
-    const hash = localStorage.getItem('yv_pw_' + nome);
-    if (hash) {
-      const r = await API.postJson({ _action: 'equipe_cracha', nome, hash, desde: localStorage.getItem('yv_login_em') || '' });
-      if (r && r.status === 'ok' && r.cracha) {
-        qqGuardarCracha(r.cracha);
-        // conseguiu sozinho: fecha a tela de senha que a recusa abriu
-        if (_loginAbertoPorRecusa && captador && captador.nome === nome) { _loginAbertoPorRecusa = false; document.getElementById('screenLogin').classList.add('hidden'); qqAtualizarAvisoFila(); }
-        return;
-      }
-      // planilha antiga (sem crachá) ou sem resposta: não faz nada
-      if (!r || !['senha_nao_confere', 'senha_migrada', 'refazer_login', 'bloqueado'].includes(r.code)) return;
-    } else if (!pedirSenhaSeFalhar) return;
-    if (pedirSenhaSeFalhar && captador && captador.nome === nome) _pedirSenhaDeNovo(nome);
-  } finally { _crachaEmAndamento = false; }
 }
 function _pedirSenhaDeNovo(nome) {
   document.getElementById('screenLogin').classList.remove('hidden');
@@ -1490,24 +1504,26 @@ function qqAtualizarAvisoFila() {
   if (faixa) {
     if (f.total) {
       const plural = f.total === 1 ? 'ainda não enviada' : 'ainda não enviadas';
-      faixa.innerHTML = '⚠️ ' + _textoFila(f) + ' ' + plural + (_aguardandoLogin ? ' · <span>toque para entrar de novo</span>' : (navigator.onLine ? ' · <span>enviando…</span>' : ' · <span>sem internet</span>'));
+      faixa.innerHTML = '⚠️ ' + _textoFila(f) + ' ' + plural + (_precisaEntrar() ? ' · <span>toque para entrar de novo</span>' : (navigator.onLine ? ' · <span>enviando…</span>' : ' · <span>sem internet</span>'));
     }
     faixa.classList.toggle('hidden', !f.total);
     cab.classList.toggle('com-aviso', !!f.total);
   }
   const av = document.getElementById('lgAvisoFila');
   if (av) {
-    if (_aguardandoLogin) av.innerHTML = '<b>' + MSG_FILA_PARADA + '</b>' + (f.total ? _textoFila(f) + ' aguardando neste celular.' : '');
+    const parado = _precisaEntrar();
+    if (parado) av.innerHTML = '<b>' + MSG_FILA_PARADA + '</b>' + (f.total ? _textoFila(f) + ' aguardando neste celular.' : '');
     else if (f.total) av.innerHTML = '<b>' + _textoFila(f) + (f.total === 1 ? ' ainda não enviada' : ' ainda não enviadas') + ' neste celular.</b>Entre para enviar.';
-    av.classList.toggle('hidden', !_aguardandoLogin && !f.total);
+    av.classList.toggle('hidden', !parado && !f.total);
   }
 }
 function avisoFilaToque() {
-  if (_aguardandoLogin && captador) { _loginAbertoPorRecusa = true; _pedirSenhaDeNovo(captador.nome); return; }
+  if (_precisaEntrar()) { _fechouSemServidorEm = 0; _abrirTelaSenha('toque na faixa'); return; }
   offlineFlush(); try { ddpOfflineFlush(); } catch (e) {}
 }
 setInterval(qqAtualizarAvisoFila, 5000);
-window.addEventListener('online', qqAtualizarAvisoFila);
+setInterval(() => _conferirTelaSemCracha('sem crachá com internet'), 30000);
+window.addEventListener('online', () => { qqAtualizarAvisoFila(); _conferirTelaSemCracha('voltou a internet sem crachá'); });
 window.addEventListener('offline', qqAtualizarAvisoFila);
 
 // ═══ MIGRAÇÃO DE ENDEREÇO (v2.27) ═══
@@ -1732,6 +1748,7 @@ const API = {
   post: async (lead, opts) => {
     opts = opts || {};
     if (!API.ok()) return false;
+    if (!qqEnvioLiberado()) return false; // v2.51: sem crachá não envia (fica na fila do aparelho)
     try {
       const r = await fetch(CONFIG.webhookUrl, {
         method: 'POST',
@@ -1759,6 +1776,7 @@ const API = {
   // Igual ao post, mas devolve a resposta do servidor (ou null se falhou)
   postJson: async (payload) => {
     if (!API.ok()) return null;
+    if (!_acaoSemCracha(payload) && !qqEnvioLiberado()) return null; // v2.51
     try {
       const r = await fetch(CONFIG.webhookUrl, { method: 'POST', headers: {'Content-Type':'text/plain'}, body: JSON.stringify(_comCracha(payload)) });
       if (!r.ok) return null;
@@ -1774,6 +1792,7 @@ const API = {
     // Sempre usar dateFrom+dateTo cobrindo o período completo relevante (mês corrente, no mínimo).
     // dateISO só deve ser usado no showHist (Histórico individual do captador).
     if (!API.ok()) return null;
+    if (!qqEnvioLiberado()) return null; // v2.51
     try {
       const p = new URLSearchParams(qqParamChave());
       if (qqCracha()) p.set('cracha', qqCracha());
@@ -1996,10 +2015,11 @@ function equipeVerificarSessao() {
     .then(r => {
       if (r && r.status === 'ok') {
         if (r.cracha) qqGuardarCracha(r.cracha);       // crachá renovado
-        else if (!temCracha) qqObterCracha(true);       // ainda sem crachá: pega pela senha deste celular
+        else if (!temCracha) _conferirTelaSemCracha('sessão sem crachá'); // v2.51: sem troca automática, pede a senha
         return;
       }
       if (!r || r.code !== 'refazer_login' || !captador || captador.nome !== nome) return;
+      _telaLog('abriu: sessão refazer_login (senha redefinida ou desativado)');
       qqApagarCracha();
       localStorage.removeItem('yv_pw_' + nome); localStorage.removeItem('yv_pw_em_' + nome);
       sessionStorage.removeItem('yv_captador');
@@ -2153,6 +2173,13 @@ function initLogin() {
     }
     if (found) {
       captador = found;
+      // v2.51: com internet e sem crachá, não entra direto: pede a senha
+      if (navigator.onLine && !qqCracha()) {
+        document.getElementById('screenLogin').classList.remove('hidden');
+        _abrirTelaSenha('início sem crachá');
+        return;
+      }
+      _telaLog('início com ' + (qqCracha() ? 'crachá' : 'sem internet'));
       document.getElementById('screenLogin').classList.add('hidden'); afterLogin(); return;
     }
     // v2.35: não está mais na equipe (desativado) → esquece o login deste celular
@@ -2241,7 +2268,7 @@ async function doLogin() {
   const btn = document.querySelector('#pwPanel .btn-login');
   const offline = () => {
     // Sem internet: só a senha pessoal já usada neste celular
-    if (ehPessoalDaqui) return _entrarAposLogin(nome, true);
+    if (ehPessoalDaqui) return _entrarAposLogin(nome, true, true);
     errEl.textContent = 'Sem internet. Sem conexão, só dá para entrar com a senha que você já usa neste celular.';
   };
   if (!navigator.onLine) return offline();
@@ -2260,11 +2287,15 @@ async function doLogin() {
       }
       _equipeGuardar(at.equipe);
       if (at.cracha) qqGuardarCracha(at.cracha);
-      return _entrarAposLogin(nome, true);
+      return _entrarAposLogin(nome, true, false, 'login (senha inicial atualizada)');
     }
     const res = await API.postJson({ _action: 'equipe_login', nome, senha: pw });
     if (!res) return offline();
-    if (res.status === 'ok') { qqGuardarCracha(res.cracha); return _entrarAposLogin(nome, ehPessoalDaqui && !res.criarSenha); }
+    if (res.status === 'ok') {
+      qqGuardarCracha(res.cracha);
+      if (!res.cracha && !res.criarSenha) { _telaLog('login ok sem crachá na resposta'); errEl.textContent = 'A planilha não devolveu o seu acesso. Tente de novo em instantes.'; return; }
+      return _entrarAposLogin(nome, ehPessoalDaqui && !res.criarSenha, false, 'login');
+    }
     if (res.code === 'bloqueado' || res.code === 'redefinir_pelo_ceo') { errEl.textContent = MSG_SENHA[res.code]; return; }
     if (ehPessoalDaqui) {
       inicialWrap.classList.remove('hidden');
@@ -2276,7 +2307,7 @@ async function doLogin() {
   } finally { btn.disabled = false; btn.textContent = 'Entrar'; }
 }
 // Senha conferida: entra (senha pessoal) ou pede para criar a senha pessoal (provisória)
-function _entrarAposLogin(nome, pessoal) {
+function _entrarAposLogin(nome, pessoal, semServidor, motivo) {
   captador = _membro(nome);
   _marcarLogin();
   sessionStorage.setItem('yv_captador', nome);
@@ -2287,10 +2318,11 @@ function _entrarAposLogin(nome, pessoal) {
     return;
   }
   _senhaDoLogin = null;
-  _loginAbertoPorRecusa = false;
-  document.getElementById('screenLogin').classList.add('hidden');
+  if (!_fecharTelaSenha(motivo || (semServidor ? 'login sem internet' : 'login'), semServidor)) {
+    document.getElementById('pwError').textContent = 'A planilha não devolveu o seu acesso. Tente de novo em instantes.';
+    return;
+  }
   afterLogin();
-  qqAtualizarAvisoFila();
 }
 
 // — Primeiro login: criação de senha pessoal —
@@ -2322,10 +2354,11 @@ async function confirmarCriarSenha() {
   if (r.cracha) qqGuardarCracha(r.cracha);
   await setSenha(nome, pw1);
   _senhaDoLogin = null;
-  document.getElementById('criarSenhaPanel').classList.add('hidden');
   sessionStorage.setItem('yv_captador', nome);
   try { localStorage.setItem('yv_captador', nome); } catch(e) {}
-  document.getElementById('screenLogin').classList.add('hidden');
+  if (!r.cracha) { _telaLog('criou senha sem crachá na resposta'); errEl.textContent = 'Senha criada, mas a planilha não devolveu o seu acesso. Volte e entre com a senha nova.'; return; }
+  document.getElementById('criarSenhaPanel').classList.add('hidden');
+  if (!_fecharTelaSenha('criou senha pessoal')) return;
   afterLogin();
 }
 
@@ -2410,8 +2443,8 @@ function openPwChange() {
 function closePwChange() {
   document.getElementById('pwChangePanel').classList.add('hidden');
   document.getElementById('loginSelectPanel').classList.remove('hidden');
-  // Fecha screenLogin só se já havia captador logado
-  if (captador) document.getElementById('screenLogin').classList.add('hidden');
+  // Fecha screenLogin só se já havia captador logado (v2.51: e com crachá)
+  if (captador && !_fecharTelaSenha('fechou alterar senha')) _abrirTelaSenha('sem crachá ao fechar alterar senha');
 }
 function pwcClearError() { document.getElementById('pwcError').textContent = ''; }
 
@@ -5123,7 +5156,7 @@ function showCdp() {
     const _cdpDateTo   = (cdpFiltro.periodo === 'livre' && cdpFiltro.ate) ? cdpFiltro.ate : todayISO();
     Promise.all([
       API.getLeads(null, _cdpDateFrom, _cdpDateTo),
-      fetch(_urlComCracha(CONFIG.webhookUrl + '?_type=pi' + (qqParamChave() ? '&' + qqParamChave() : ''))).then(r=>r.json()).then(j => { _verCodigoCracha(j); return j; }).catch(()=>null)
+      !qqEnvioLiberado() ? Promise.resolve(null) : fetch(_urlComCracha(CONFIG.webhookUrl + '?_type=pi' + (qqParamChave() ? '&' + qqParamChave() : ''))).then(r=>r.json()).then(j => { _verCodigoCracha(j); return j; }).catch(()=>null)
     ]).then(([remoto, piRemoto]) => {
       mergeRemoto(remoto, _cdpDateFrom);
       mergePIsRemoto(piRemoto);
@@ -5642,6 +5675,7 @@ let _ddpFetchPendente = 0;
 // Re-renderiza o DDP quando os dados chegam
 function ddpSheetsLoad(hotel) {
   if (!DDP_CONFIG.sheetsUrl) return;
+  if (!qqEnvioLiberado()) return; // v2.51
   const hotelEnc = encodeURIComponent(hotel);
   _ddpFetchPendente++;
   _ddpAtualizarBotaoFiltro();
@@ -5718,6 +5752,7 @@ function _ddpOfflineEnqueue(entry) {
 let _ddpFlushEmAndamento = false;
 function ddpOfflineFlush() {
   if (!navigator.onLine || !DDP_CONFIG.sheetsUrl) return;
+  if (!qqEnvioLiberado()) return; // v2.51
   if (_ddpFlushEmAndamento) return;
   const q = JSON.parse(localStorage.getItem(DDP_OFFLINE_KEY) || '[]');
   if (!q.length) return;
@@ -5736,6 +5771,7 @@ setInterval(ddpOfflineFlush, 30000);
 
 async function _ddpPostSheets(entry) {
   // Usa GET com query string — POST não sobrevive ao redirect do Apps Script (HTTP 405)
+  if (!qqEnvioLiberado()) return false; // v2.51
   try {
     const params = new URLSearchParams({
       action: 'saveDDP',
@@ -7799,7 +7835,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.50';
+const APP_VERSAO = '2.51';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
@@ -7903,7 +7939,7 @@ const _emEnvio = { pesq: 0, marc: 0 };
 function offlineFlush() {
   if (!navigator.onLine || !API.ok()) return;
   if (_flushEmAndamento) return; // já está rodando, não empilha
-  if (_aguardandoLogin && !qqCracha()) return; // v2.49: crachá recusado — espera entrar de novo
+  if (!qqEnvioLiberado()) return; // v2.51: sem crachá nada sai (espera entrar de novo)
   const q = JSON.parse(localStorage.getItem(OFFLINE_KEY) || '[]');
   if (!q.length) return;
   const pendentes = q.filter(x => x && x.id);

@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════
 // Your Vacation — Qualificador de Captação
-// Google Apps Script Backend — v26
+// Google Apps Script Backend — v27
 // Cole este código em: Planilha > Extensões > Apps Script
 // Depois: Implantar > Gerenciar implantações > Editar > Nova versão > Implantar
 // ═══════════════════════════════════════════════════════
@@ -442,7 +442,7 @@ function ligarCracha()    { PropertiesService.getScriptProperties().deleteProper
 // "Recusados": uma por dia + captador + motivo. Quantidade = pesquisas e marcações diferentes recusadas
 // no dia; "Na fila do celular" = o que o app (v2.49+) diz que ainda está preso.
 const RECUSADOS_SHEET = 'Recusados';
-const RECUSADOS_COLUNAS = ['Data', 'Captador', 'Motivo', 'Quantidade', 'Na fila do celular', 'Tentativas', 'Último envio', 'Versão do app', 'IDs'];
+const RECUSADOS_COLUNAS = ['Data', 'Captador', 'Motivo', 'Quantidade', 'Na fila do celular', 'Tentativas', 'Último envio', 'Versão do app', 'IDs', 'Tela de senha (abriu/fechou)']; // v27: última coluna = registro do app (v2.51+)
 const RECUSA_MOTIVO = { sem_cracha: 'sem crachá (sessão antiga ou app desatualizado)', cracha_invalido: 'crachá vencido ou inválido' };
 function _nomeDoCrachaSemConferir(cracha) {
   try {
@@ -472,6 +472,9 @@ function _registrarRecusa(d, code) {
       sh.setFrozenRows(1);
       sh.getRange('A:A').setNumberFormat('@STRING@');
     }
+    // v27: aba criada antes da coluna nova ganha o cabeçalho que falta
+    if (String(sh.getRange(1, RECUSADOS_COLUNAS.length).getValue() || '') !== RECUSADOS_COLUNAS[RECUSADOS_COLUNAS.length - 1]) sh.getRange(1, RECUSADOS_COLUNAS.length).setValue(RECUSADOS_COLUNAS[RECUSADOS_COLUNAS.length - 1]);
+    const tela = String(d._tela || '').slice(0, 300);
     const hoje = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'yyyy-MM-dd');
     const agora = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm');
     const motivo = RECUSA_MOTIVO[code] || code;
@@ -487,11 +490,11 @@ function _registrarRecusa(d, code) {
         const vistos = String(l[8] || '').split(',').filter(Boolean);
         ids.forEach(x => { if (vistos.indexOf(x) < 0 && vistos.length < 2000) vistos.push(x); });
         const qtd = Math.max(Number(l[3]) || 0, vistos.length || (Number(l[3]) || 0) + (ids.length ? 0 : 1));
-        sh.getRange(ini + i, 4, 1, 6).setValues([[qtd, fila === '' ? l[4] : fila, (Number(l[5]) || 0) + 1, agora, d._v || l[7] || 'antiga (sem versão)', vistos.join(',')]]);
+        sh.getRange(ini + i, 4, 1, 7).setValues([[qtd, fila === '' ? l[4] : fila, (Number(l[5]) || 0) + 1, agora, d._v || l[7] || 'antiga (sem versão)', vistos.join(','), tela || l[9] || '']]);
         return;
       }
     }
-    sh.appendRow([hoje, nome, motivo, Math.max(ids.length, 1), fila, 1, agora, d._v || 'antiga (sem versão)', ids.join(',')]);
+    sh.appendRow([hoje, nome, motivo, Math.max(ids.length, 1), fila, 1, agora, d._v || 'antiga (sem versão)', ids.join(','), tela]);
   } catch (e) {
     // nunca quebra o pedido por causa do registro
   } finally { lock.releaseLock(); }
@@ -645,7 +648,7 @@ function doPost(e) {
 function _doPost(e, user) {
   try {
     const data = JSON.parse(e.postData.contents);
-    delete data.cracha; delete data._quem; delete data._v; delete data._fila; // v25: só servem para a aba Recusados
+    delete data.cracha; delete data._quem; delete data._v; delete data._fila; delete data._tela; // v25: só servem para a aba Recusados
     if (data.sala !== undefined && data.sala !== null) data.sala = normalizarSalaDigitada(data.sala);
 
     // saveDDP: salva/atualiza registro de DDP na aba DDP do Sheets
