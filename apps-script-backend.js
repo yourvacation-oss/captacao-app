@@ -2147,3 +2147,97 @@ function medirLeitura() {
   mede('SP 3.400 linhas x todas colunas', () => sh.getRange(n - 3400, 1, 3400, sh.getLastColumn()).getValues());
   mede('ler Equipe', () => _acharMembro('Erick Faleiro'));
 }
+
+
+// ── RELATÓRIO DIÁRIO D-1 (v28) ──
+// Todo dia às 8h (horário de Brasília) manda por e-mail o resumo do dia anterior:
+// por operação e por profissional. Só lê a planilha; não altera nada.
+const RELATORIO_EMAIL = 'erick.faleiro@yourvacation.com.br';
+
+function relatorioDiarioD1() { _enviarRelatorioDia(1); }
+
+// Rodar UMA vez: cria (ou recria) o envio automático das 8h
+function instalarRelatorioDiario() {
+  ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'relatorioDiarioD1').forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('relatorioDiarioD1').timeBased().atHour(8).nearMinute(0).everyDays(1).inTimezone('America/Sao_Paulo').create();
+  Logger.log('Relatório diário agendado para as 8h. Enviando agora o de ontem como teste.');
+  _enviarRelatorioDia(1);
+}
+
+function _enviarRelatorioDia(diasAtras) {
+  const tz = 'America/Sao_Paulo';
+  const alvo = new Date(Date.now() - diasAtras * 86400000);
+  const diaBR = Utilities.formatDate(alvo, tz, 'dd/MM/yyyy');
+  const diaISO = Utilities.formatDate(alvo, tz, 'yyyy-MM-dd');
+  const ini = new Date(diaISO + 'T00:00:00-03:00').getTime(), fim = ini + 86400000;
+  const vistos = {};
+  const ops = {}, caps = {};
+  const novo = () => ({ q: 0, salaQ: 0, nq: 0, salaNQ: 0 });
+  abasDePesquisas().forEach(sh => {
+    const n = sh.getLastRow();
+    if (n < 2) return;
+    const cab = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    const iId = cab.indexOf('ID'), iD = cab.indexOf('Data'), iC = cab.indexOf('Captador'), iS = cab.indexOf('Sala'), iR = cab.indexOf('Resultado'), iE = cab.indexOf('EmSala');
+    if (iId < 0 || iR < 0) return;
+    const comeco = Math.max(2, n - 3999); // as pesquisas recentes ficam no fim da aba
+    const linhas = sh.getRange(comeco, 1, n - comeco + 1, cab.length).getValues();
+    linhas.forEach(r => {
+      const id = String(r[iId] || '').trim();
+      if (!id || vistos[id]) return;
+      const t = Number(id);
+      let doDia = t >= ini && t < fim;
+      if (!(t > 1e12)) { // ID fora do padrão: usa a coluna Data
+        const d = iD >= 0 ? r[iD] : '';
+        const ds = Object.prototype.toString.call(d) === '[object Date]' ? Utilities.formatDate(d, tz, 'dd/MM/yyyy') : String(d).trim();
+        doDia = ds === diaBR;
+      }
+      if (!doDia) return;
+      vistos[id] = true;
+      const captador = String(r[iC] || '(sem nome)').trim();
+      const op = _opDaPesquisa(String(r[iS] || ''), captador) || 'Sem operação';
+      const q = String(r[iR]).trim().toUpperCase() === 'Q';
+      const sala = String(iE >= 0 ? r[iE] : '').trim().toUpperCase() === 'SIM';
+      [ops[op] = ops[op] || novo(), (caps[op + '|' + captador] = caps[op + '|' + captador] || novo())].forEach(x => {
+        if (q) { x.q++; if (sala) x.salaQ++; } else { x.nq++; if (sala) x.salaNQ++; }
+      });
+    });
+  });
+
+  const th = 'style="background:#13243A;color:#F1D691;padding:6px 8px;text-align:right;font-size:12px"';
+  const thL = 'style="background:#13243A;color:#F1D691;padding:6px 8px;text-align:left;font-size:12px"';
+  const td = 'style="padding:5px 8px;text-align:right;border-bottom:1px solid #ddd;font-size:13px"';
+  const tdL = 'style="padding:5px 8px;text-align:left;border-bottom:1px solid #ddd;font-size:13px"';
+  const tot = 'style="padding:6px 8px;text-align:right;font-weight:bold;background:#f1f1f1;font-size:13px"';
+  const totL = 'style="padding:6px 8px;text-align:left;font-weight:bold;background:#f1f1f1;font-size:13px"';
+  const cabec = (primeira) => '<tr><th ' + thL + '>' + primeira + '</th><th ' + th + '>Pesquisas Q</th><th ' + th + '>Sala Q</th><th ' + th + '>Pesquisas NQ</th><th ' + th + '>Sala NQ</th><th ' + th + '>Total pesquisas</th><th ' + th + '>Total sala</th></tr>';
+  const linha = (nome, x, eTotal) => { const a = eTotal ? tot : td, b = eTotal ? totL : tdL;
+    return '<tr><td ' + b + '>' + nome + '</td><td ' + a + '>' + x.q + '</td><td ' + a + '>' + x.salaQ + '</td><td ' + a + '>' + x.nq + '</td><td ' + a + '>' + x.salaNQ + '</td><td ' + a + '>' + (x.q + x.nq) + '</td><td ' + a + '>' + (x.salaQ + x.salaNQ) + '</td></tr>'; };
+  const soma = (lista) => lista.reduce((s, x) => ({ q: s.q + x.q, salaQ: s.salaQ + x.salaQ, nq: s.nq + x.nq, salaNQ: s.salaNQ + x.salaNQ }), novo());
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const ordemOps = OPERACOES_EQUIPE.concat(Object.keys(ops).filter(o => OPERACOES_EQUIPE.indexOf(o) < 0));
+  let h1 = '<table style="border-collapse:collapse;font-family:Arial,sans-serif">' + cabec('Operação');
+  ordemOps.forEach(o => { h1 += linha(esc(o), ops[o] || novo(), false); });
+  h1 += linha('Total', soma(Object.keys(ops).map(o => ops[o])), true) + '</table>';
+
+  let h2 = '';
+  ordemOps.filter(o => ops[o]).forEach(o => {
+    const daOp = Object.keys(caps).filter(k => k.split('|')[0] === o)
+      .map(k => ({ nome: k.split('|').slice(1).join('|'), x: caps[k] }))
+      .sort((a, b) => (b.x.q + b.x.nq) - (a.x.q + a.x.nq) || a.nome.localeCompare(b.nome));
+    h2 += '<h3 style="font-family:Arial,sans-serif;color:#13243A;margin:18px 0 6px">' + esc(o) + '</h3>';
+    h2 += '<table style="border-collapse:collapse;font-family:Arial,sans-serif">' + cabec('Profissional');
+    daOp.forEach(p => { h2 += linha(esc(p.nome), p.x, false); });
+    h2 += linha('Total ' + esc(o), ops[o], true) + '</table>';
+  });
+
+  const totalGeral = soma(Object.keys(ops).map(o => ops[o]));
+  const corpo = '<div style="font-family:Arial,sans-serif;color:#222">' +
+    '<h2 style="color:#13243A;margin:0 0 4px">QualifiQ · Resultado de ' + diaBR + '</h2>' +
+    '<p style="margin:0 0 14px;color:#555">' + (totalGeral.q + totalGeral.nq) + ' pesquisas e ' + (totalGeral.salaQ + totalGeral.salaNQ) + ' casais em sala no dia.</p>' +
+    '<h3 style="color:#13243A;margin:10px 0 6px">Por operação</h3>' + h1 +
+    '<h3 style="color:#13243A;margin:22px 0 0">Por profissional</h3>' + (h2 || '<p>Nenhuma pesquisa no dia.</p>') +
+    '<p style="margin-top:18px;color:#888;font-size:11px">Sala = casal marcado como em sala no CDP até o envio deste e-mail. Enviado automaticamente pela planilha do QualifiQ.</p></div>';
+  MailApp.sendEmail({ to: RELATORIO_EMAIL, subject: 'QualifiQ · Resultado de ' + diaBR, htmlBody: corpo, name: 'QualifiQ' });
+  Logger.log('Relatório de ' + diaBR + ' enviado para ' + RELATORIO_EMAIL + ': ' + (totalGeral.q + totalGeral.nq) + ' pesquisas.');
+}
