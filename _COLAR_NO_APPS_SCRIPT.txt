@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════
 // Your Vacation — Qualificador de Captação
-// Google Apps Script Backend — v27
+// Google Apps Script Backend — v28
 // Cole este código em: Planilha > Extensões > Apps Script
 // Depois: Implantar > Gerenciar implantações > Editar > Nova versão > Implantar
 // ═══════════════════════════════════════════════════════
@@ -1179,7 +1179,8 @@ function equipeLogin(data) {
   // Senha inicial migrada: gestor não entra (redefinição pelo CEO); os demais só criam a senha pessoal (sem crachá)
   if (_gestorComSenhaMigrada(c.membro)) return jsonResponse({ status: 'error', code: 'redefinir_pelo_ceo' });
   if (_senhaMigrada(c.membro)) return jsonResponse({ status: 'ok', criarSenha: true });
-  return jsonResponse({ status: 'ok', cracha: emitirCracha(c.membro) });
+  // v28: diz a origem da senha (pessoal | redefinida) — o app não depende mais do hash guardado no celular
+  return jsonResponse({ status: 'ok', cracha: emitirCracha(c.membro), origem: c.membro.origem === 'pessoal' ? 'pessoal' : 'redefinida' });
 }
 // Celular já logado: troca a senha pessoal guardada nele (em código) por um crachá, sem digitar de novo.
 // Mesmo limite de tentativas do login.

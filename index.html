@@ -2165,8 +2165,9 @@ function initLogin() {
   if (savedNome) {
     const todos = equipeAtual();
     const found = todos.find(c => c.nome === savedNome);
-    if (found && usaSenhaPadrao(found.nome)) {
+    if (found && usaSenhaPadrao(found.nome) && !qqCracha()) {
       // v2.37: fechou o app antes de criar a senha pessoal → entra de novo com a provisória
+      // v2.52: com crachá válido (entrou com a senha pessoal) não pede de novo; o crachá só é guardado com senha pessoal
       document.getElementById('screenLogin').classList.remove('hidden');
       loginPickNome(found.nome);
       return;
@@ -2292,9 +2293,15 @@ async function doLogin() {
     const res = await API.postJson({ _action: 'equipe_login', nome, senha: pw });
     if (!res) return offline();
     if (res.status === 'ok') {
-      qqGuardarCracha(res.cracha);
       if (!res.cracha && !res.criarSenha) { _telaLog('login ok sem crachá na resposta'); errEl.textContent = 'A planilha não devolveu o seu acesso. Tente de novo em instantes.'; return; }
-      return _entrarAposLogin(nome, ehPessoalDaqui && !res.criarSenha, false, 'login');
+      // v2.52: quem decide se a senha é pessoal é a planilha, não o hash guardado neste celular
+      // (aparelho novo, aba anônima, navegador do WhatsApp ou dados limpos não têm o hash).
+      // Backend v28 diz a origem; o antigo só diz criarSenha (aceitou sem criarSenha = pessoal).
+      const pessoal = ('origem' in res) ? res.origem === 'pessoal' : !res.criarSenha;
+      if (!pessoal) { _telaLog('login: precisa criar a senha pessoal'); return _entrarAposLogin(nome, false, false, 'login'); } // o crachá vem ao criar a senha
+      qqGuardarCracha(res.cracha);
+      if (!ehPessoalDaqui) await setSenha(nome, pw); // guarda o hash: próximas aberturas e entrada sem internet
+      return _entrarAposLogin(nome, true, false, 'login');
     }
     if (res.code === 'bloqueado' || res.code === 'redefinir_pelo_ceo') { errEl.textContent = MSG_SENHA[res.code]; return; }
     if (ehPessoalDaqui) {
@@ -7835,7 +7842,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.51';
+const APP_VERSAO = '2.52';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
