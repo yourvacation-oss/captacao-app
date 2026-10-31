@@ -1429,7 +1429,12 @@ function _urlComCracha(url) { const c = qqParamCracha(); return c ? url + (url.i
 // quando a pessoa entra e a planilha devolve um crachá novo (_fecharTelaSenha). Sem troca automática.
 const CODIGOS_CRACHA_RECUSADO = ['sem_cracha', 'cracha_invalido', 'refazer_login'];
 const MSG_FILA_PARADA = 'Suas pesquisas não estão sendo enviadas. Entre de novo.';
-function _verCodigoCracha(json) { if (json && CODIGOS_CRACHA_RECUSADO.includes(json.code)) qqCrachaRecusado(json.code); }
+function _verCodigoCracha(json) {
+  if (json && json.marcacaoParcial) { try { localStorage.setItem('yv_marcacao_parcial', '1'); } catch (e) {} } // v2.53: planilha v29+
+  if (json && CODIGOS_CRACHA_RECUSADO.includes(json.code)) qqCrachaRecusado(json.code);
+}
+// v2.53: só manda marcação parcial quando a planilha já disse que aceita (backend v29); antes disso manda completa
+function _marcacaoParcialOk() { try { return localStorage.getItem('yv_marcacao_parcial') === '1'; } catch (e) { return false; } }
 function qqCrachaRecusado(code) {
   qqApagarCracha();
   _abrirTelaSenha('recusa ' + (code || ''));
@@ -1993,6 +1998,7 @@ function equipeSincronizar() {
   return fetch(CONFIG.webhookUrl + '?action=listarEquipe&sala=_' + (k ? '&' + k : ''), { cache: 'no-store' })
     .then(r => r.ok ? r.json() : null)
     .then(j => {
+      if (j && j.marcacaoParcial) { try { localStorage.setItem('yv_marcacao_parcial', '1'); } catch (e) {} } // v2.53: planilha v29+
       if (!j || j.status !== 'ok' || !Array.isArray(j.equipe) || !j.equipe.some(m => m && m.ativo)) return false;
       localStorage.setItem(EQUIPE_CACHE_KEY, JSON.stringify({ em: new Date().toISOString(), membros: j.equipe }));
       // Na tela de entrada, atualiza a lista com o que chegou
@@ -4692,7 +4698,8 @@ function toggleSala(leadId) {
   // Se o lead ainda não foi confirmado pelo servidor, reenvia o lead completo
   // (garante que a linha exista na planilha). Se já existe, basta o update_sala.
   if (!lead._synced) offlineEnqueue({ ...lead, _synced: undefined });
-  _syncSalaState(lead);
+  // v2.53: manda só o que mudou (desmarcar a sala também limpa tipo e venda)
+  _syncSalaState(lead, lead.emSala ? { emSala: true } : { emSala: false, tipoSala: null, venda: false });
   renderHistList();
   atualizarCdp();
 }
@@ -4703,7 +4710,7 @@ function setTipoSala(leadId, tipo) {
   // Toggle: se já está selecionado, desmarca
   lead.tipoSala = lead.tipoSala === tipo ? null : tipo;
   _salvarLeads();
-  _syncSalaState(lead);
+  _syncSalaState(lead, { tipoSala: lead.tipoSala || null });
   renderHistList();
 }
 
@@ -4712,7 +4719,7 @@ function toggleVenda(leadId) {
   if (!lead) return;
   lead.venda = !lead.venda;
   _salvarLeads();
-  _syncSalaState(lead);
+  _syncSalaState(lead, { venda: !!lead.venda });
   renderHistList();
 }
 
@@ -4721,12 +4728,14 @@ function toggleVenda(leadId) {
 // só na memória por 2s e se perdia se o captador fechasse o app). O envio continua
 // em lote (1 chamada para várias marcações) para não estourar a cota do Apps Script.
 let _salaFlushTimer = null;
-function _syncSalaState(lead) {
+// v2.53: envia SÓ os campos que a pessoa mudou (campos). Antes ia emSala+tipoSala+venda da cópia local, e um
+// aparelho desatualizado (ex.: líder marcando venda) mandava emSala=false e apagava a marcação de outro.
+function _syncSalaState(lead, campos) {
   if (typeof lead === 'number') lead = leads[lead]; // compatibilidade
   if (!lead || !lead.id) return;
+  if (!campos || !_marcacaoParcialOk()) campos = { emSala: !!lead.emSala, tipoSala: lead.tipoSala || null, venda: !!lead.venda };
   // v2.50: _em = quando a marcação foi feita neste aparelho (vale 24h contra a planilha no mergeRemoto)
-  offlineEnqueue({ _action: 'update_sala', id: lead.id,
-    emSala: !!lead.emSala, tipoSala: lead.tipoSala || null, venda: !!lead.venda, _em: Date.now() });
+  offlineEnqueue({ _action: 'update_sala', id: lead.id, ...campos, _em: Date.now() });
   if (_salaFlushTimer) clearTimeout(_salaFlushTimer);
   _salaFlushTimer = setTimeout(() => { _salaFlushTimer = null; offlineFlush(); }, 2000);
 }
@@ -7842,7 +7851,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.52';
+const APP_VERSAO = '2.53';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
@@ -7912,7 +7921,11 @@ function offlineEnqueue(lead, naoSobrescrever) {
   const idx = q.findIndex(x => ((x._action || 'lead') + '_' + (x.id || '')) === key);
   // naoSobrescrever: usado ao devolver um item que falhou; se já existe versão mais
   // nova na fila (feita durante o envio), mantém a mais nova
-  if (idx >= 0) { if (!naoSobrescrever) q[idx] = lead; } else q.push(lead);
+  if (idx >= 0) {
+    // v2.53: marcações do mesmo lead se juntam (só os campos mudados); a mais nova vence em cada campo
+    if (lead._action === 'update_sala') q[idx] = naoSobrescrever ? { ...lead, ...q[idx] } : { ...q[idx], ...lead };
+    else if (!naoSobrescrever) q[idx] = lead;
+  } else q.push(lead);
   localStorage.setItem(OFFLINE_KEY, JSON.stringify(q));
   qqAtualizarAvisoFila();
 }
@@ -7972,7 +7985,7 @@ function offlineFlush() {
     for (let i = 0; i < salas.length; i += MARCACAO_LOTE) {
       const lote = salas.slice(i, i + MARCACAO_LOTE);
       const payload = lote.length === 1 ? { ...lote[0], _em: undefined, _tentativas: undefined }
-        : { _action: 'update_sala_batch', updates: lote.map(u => ({ id: u.id, emSala: u.emSala, tipoSala: u.tipoSala, venda: u.venda })) };
+        : { _action: 'update_sala_batch', updates: lote.map(u => { const x = { id: u.id }; ['emSala', 'tipoSala', 'venda'].forEach(k => { if (u[k] !== undefined) x[k] = u[k]; }); return x; }) }; // v2.53: só campos presentes
       const res = await API.postJson(payload).catch(() => null);
       _emEnvio.marc = Math.max(0, _emEnvio.marc - lote.length);
       const ok = res && (res.status === 'ok' || res.status === 'duplicate');

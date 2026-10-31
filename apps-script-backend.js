@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════
 // Your Vacation — Qualificador de Captação
-// Google Apps Script Backend — v28
+// Google Apps Script Backend — v29
 // Cole este código em: Planilha > Extensões > Apps Script
 // Depois: Implantar > Gerenciar implantações > Editar > Nova versão > Implantar
 // ═══════════════════════════════════════════════════════
@@ -607,24 +607,59 @@ function marcarSalas(marcacoes, user, parcial) {
   });
   const lidas = {};
   Object.keys(porAba).forEach(n => { lidas[n] = _lerLinhasParaMarcar(porAba[n].sheet, porAba[n].rows); });
-  const gravar = [];
+  const gravar = [], mudancas = [];
   alvos.forEach(t => {
     const atual = lidas[t.sheet.getName()][t.row] || {};
     if (!_podeGravar(user, _opDaPesquisa(atual.Sala, atual.Captador), atual.Captador)) { res.proibidos.push(String(t.u.id)); return; }
     const u = t.u, campo = (val, conv, velho) => (parcial && val === undefined) ? velho : conv(val);
-    gravar.push({ t, v: {
+    const v = {
       EmSala:   campo(u.emSala,   x => (x === true || x === 'true') ? 'SIM' : '', atual.EmSala),
       TipoSala: campo(u.tipoSala, x => x || '', atual.TipoSala),
       Venda:    campo(u.venda,    x => (x === true || x === 'true') ? 'SIM' : '', atual.Venda),
       Sala:     u.sala !== undefined ? normalizarSalaDigitada(u.sala) : undefined,
-    } });
+    };
+    // v29: o que muda de fato (para a aba Marcações); sem mudança, não grava
+    const mud = [];
+    ['EmSala', 'TipoSala', 'Venda', 'Sala'].forEach(c => {
+      if (v[c] === undefined) return;
+      const antes = String(atual[c] === undefined || atual[c] === null ? '' : atual[c]), depois = String(v[c]);
+      if (antes !== depois) mud.push([c, antes, depois]);
+    });
+    if (!mud.length) { res.ok++; res.okIds.push(String(u.id)); return; }
+    mud.forEach(m => mudancas.push([String(u.id)].concat(m)));
+    gravar.push({ t, v });
   });
   // Fase 2 — só gravação
   gravar.forEach(g => {
     try { _gravarMarcacao(g.t.sheet, g.t.row, g.v); res.ok++; res.okIds.push(String(g.t.u.id)); }
     catch (e) { res.errors++; }
   });
+  _registrarMarcacoes(user, mudancas);
   return res;
+}
+
+// ── MARCAÇÕES (v29) ──
+// Auditoria: cada mudança de EmSala / TipoSala / Venda / Sala vira uma linha na aba "Marcações".
+// Só registra (nada lê esta aba). Falha no registro nunca atrapalha a marcação.
+const MARCACOES_SHEET = 'Marcações';
+const MARCACOES_COLUNAS = ['Data/hora', 'Quem mudou', 'ID da pesquisa', 'Campo', 'Valor anterior', 'Valor novo'];
+function _registrarMarcacoes(user, mudancas) {
+  if (!mudancas || !mudancas.length) return;
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sh = ss.getSheetByName(MARCACOES_SHEET);
+    if (!sh) {
+      sh = ss.insertSheet(MARCACOES_SHEET);
+      const h = sh.getRange(1, 1, 1, MARCACOES_COLUNAS.length);
+      h.setValues([MARCACOES_COLUNAS]); h.setBackground('#1a2340'); h.setFontColor('#c9a84c'); h.setFontWeight('bold');
+      sh.setFrozenRows(1);
+      sh.getRange('C:C').setNumberFormat('@STRING@'); // ID como texto
+    }
+    const quando = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm:ss');
+    const quem = (user && user.nome) || '(sem crachá)';
+    // appendRow linha a linha: marcações rodam sem a trava e appendRow não sobrescreve outra execução
+    mudancas.forEach(m => sh.appendRow([quando, quem, m[0], m[1], m[2], m[3]]));
+  } catch (e) {}
 }
 
 function _podeMarcar(u, sheet, row) { const x = _salaECaptador(sheet, row); return _podeGravar(u, _opDaPesquisa(x.sala, x.captador), x.captador); }
@@ -698,7 +733,7 @@ function _doPost(e, user) {
 
     // update_sala: atualiza EmSala, TipoSala e Venda de um lead existente
     if (data._action === 'update_sala') {
-      const r = marcarSalas([data], user, false); // v22: duas fases
+      const r = marcarSalas([data], user, true); // v29: parcial — só os campos que vieram
       if (r.proibidos.length) return jsonResponse({ status: 'error', code: 'proibido', id: data.id });
       if (r.not_found.length) return jsonResponse({ status: 'not_found', id: data.id });
       return jsonResponse({ status: 'ok', id: data.id });
@@ -706,7 +741,7 @@ function _doPost(e, user) {
 
     // update_sala_batch: atualiza N leads em 1 chamada (evita quota exceeded)
     if (data._action === 'update_sala_batch' && Array.isArray(data.updates)) {
-      const results = marcarSalas(data.updates, user, false); // v22: duas fases
+      const results = marcarSalas(data.updates, user, true); // v29: parcial — só os campos que vieram
       // not_found: quantidade (compatível com versões antigas); not_found_ids: quais marcações não acharam a pesquisa
       return jsonResponse({ status: 'ok', processed: data.updates.length, updated: results.ok, not_found: results.not_found.length, not_found_ids: results.not_found, proibido_ids: results.proibidos, errors: results.errors });
     }
@@ -2075,6 +2110,8 @@ function _marcarJeitoV21(updates, user) {
 }
 
 function jsonResponse(obj) {
+  // v29: avisa o app que as marcações podem ir parciais (só os campos mudados). Só em respostas-objeto.
+  if (obj && typeof obj === 'object' && !Array.isArray(obj)) obj = Object.assign({ marcacaoParcial: true }, obj);
   return ContentService
     .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
