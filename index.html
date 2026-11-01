@@ -3363,16 +3363,21 @@ function calcAtibaia() {
   return _calcAtibaiaAteOutubro();
 }
 function calcUbatuba() { return calcAtibaiaUbatuba('Ubatuba'); }
+// v2.54: Ubatuba a partir de 01/11/2026 (pela data da pesquisa): só é Q com renda R$15k+.
+// Casal: só o Perfil 1 (sem o Perfil 3). Solteiro: R$15k+ no lugar de R$8k+ (carro 2016+, cartão e idade continuam).
+const UBATUBA_SO_15K_DESDE = '2026-11-01';
 function calcAtibaiaUbatuba(op) {
   const a = ans;
   const { rNum, isSol, isNoivos, relOk, idOk, cartaoS } = _base(a);
+  const so15k = op === 'Ubatuba' && todayISO() >= UBATUBA_SO_15K_DESDE;
+  const rendaSol = so15k ? 15000 : 8000, rendaSolTxt = so15k ? 'Mínimo R$15.000' : 'Mínimo R$8.000';
   // ano exato digitado (a faixa 2014–2020 contava 2014 e 2015 como 2018)
   const ano = (typeof a.anoCarro === 'number') ? a.anoCarro : carroAno(a.carro);
   const anoTxt = ano > 0 ? String(ano) : 'Sem carro';
   if (isNoivos) return _nqNoivos();
 
   if (isSol) {
-    const ok = rNum >= 8000 && ano >= 2016 && idOk && cartaoS;
+    const ok = rNum >= rendaSol && ano >= 2016 && idOk && cartaoS;
     if (ok) return { verdict:'Q', perfil:'Solteiro/Divorciado — ' + op, rule:null, rows:[
       {i:'✅', l:'Perfil',  v:'Solteiro / Divorciado'},
       {i:'✅', l:'Renda',   v:rendaStr(a.renda)},
@@ -3381,7 +3386,7 @@ function calcAtibaiaUbatuba(op) {
       {i:'✅', l:'Cartão',  v:'Sim'},
     ]};
     return { verdict:'NQ', perfil:null, rule:null, rows:[
-      _row(rNum >= 8000, 'Renda',   rNum >= 8000 ? rendaStr(a.renda) : 'Mínimo R$8.000'),
+      _row(rNum >= rendaSol, 'Renda', rNum >= rendaSol ? rendaStr(a.renda) : rendaSolTxt),
       _row(idOk,         'Idade',   idOk ? '30–65 anos' : 'Exige 30–65 anos'),
       _row(ano >= 2016,  'Veículo', ano >= 2016 ? anoTxt : anoTxt + ' — mínimo 2016'),
       _row(cartaoS,      'Cartão',  cartaoS ? 'Sim' : 'Obrigatório'),
@@ -3402,6 +3407,11 @@ function calcAtibaiaUbatuba(op) {
     {i:'✅', l:'Idade',          v:'30–65 anos (um do casal)'},
     {i:'➞',  l:'Veículo',        v:'Dispensado (R$15k+)'},
     {i:'➞',  l:'Cartão',         v:'Dispensado (R$15k+)'},
+  ]};
+  // Ubatuba a partir de 01/11: sem Perfil 3 — abaixo de R$15k é NQ
+  if (so15k) return { verdict:'NQ', perfil:null, rule:null, rows:[
+    _row(false, 'Renda', rendaStr(a.renda) + ' — mínimo R$15.000'),
+    {i:'💡', l:'Regra', v:'Ubatuba: só é Q com renda de R$15.000 ou mais'},
   ]};
   // Perfil 3: R$10k+ e carro 2010+, com ou sem cartão
   if (rNum >= 10000 && ano >= 2010) return { verdict:'Q', perfil:'Casal — ' + op + ' Perfil 3 (R$10k+, carro 2010+)', rule:null, rows:[
@@ -7851,7 +7861,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.53';
+const APP_VERSAO = '2.54';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
