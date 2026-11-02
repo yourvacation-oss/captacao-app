@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════
 // Your Vacation — Qualificador de Captação
-// Google Apps Script Backend — v29
+// Google Apps Script Backend — v30
 // Cole este código em: Planilha > Extensões > Apps Script
 // Depois: Implantar > Gerenciar implantações > Editar > Nova versão > Implantar
 // ═══════════════════════════════════════════════════════
@@ -657,9 +657,33 @@ function _registrarMarcacoes(user, mudancas) {
     }
     const quando = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm:ss');
     const quem = (user && user.nome) || '(sem crachá)';
-    // appendRow linha a linha: marcações rodam sem a trava e appendRow não sobrescreve outra execução
-    mudancas.forEach(m => sh.appendRow([quando, quem, m[0], m[1], m[2], m[3]]));
+    const linhas = mudancas.map(m => [quando, quem, m[0], m[1], m[2], m[3]]);
+    _gravarLinhasNoFim(sh, linhas);
   } catch (e) {}
+}
+// v30: todas as linhas de uma vez (um setValues). Antes era um appendRow por linha: um lote de 50 marcações
+// com 3 campos dava até 150 chamadas ao Google (12–15 s). A trava é a do DOCUMENTO, separada da trava
+// principal (comTrava usa a do script): só protege "achar a última linha + gravar" contra outra execução.
+function _gravarLinhasNoFim(sh, linhas) {
+  if (!linhas.length) return;
+  const lock = LockService.getDocumentLock();
+  if (!lock.tryLock(5000)) { linhas.forEach(l => sh.appendRow(l)); return; } // ocupado: jeito antigo, seguro
+  try {
+    sh.getRange(sh.getLastRow() + 1, 1, linhas.length, linhas[0].length).setValues(linhas);
+    SpreadsheetApp.flush();
+  } finally { lock.releaseLock(); }
+}
+// DIAGNÓSTICO (v30): RODAR NO EDITOR. Mede gravar N linhas de auditoria do jeito antigo (appendRow) e do novo
+// (um setValues), numa aba temporária que é apagada no fim. Não mexe nas abas de verdade.
+function medirRegistroMarcacoes() {
+  const N = 100, ss = SpreadsheetApp.getActiveSpreadsheet();
+  const tmp = ss.insertSheet('TESTE-auditoria-' + Date.now());
+  try {
+    const linhas = []; for (let i = 0; i < N; i++) linhas.push(['02/11/2026 10:00:00', 'teste', 'ID' + i, 'Venda', '', 'SIM']);
+    let t = Date.now(); linhas.forEach(l => tmp.appendRow(l)); SpreadsheetApp.flush(); const antes = Date.now() - t;
+    t = Date.now(); _gravarLinhasNoFim(tmp, linhas); const depois = Date.now() - t;
+    Logger.log('Registro de ' + N + ' mudanças — ANTES (appendRow por linha): ' + antes + ' ms · DEPOIS (um setValues): ' + depois + ' ms');
+  } finally { ss.deleteSheet(tmp); }
 }
 
 function _podeMarcar(u, sheet, row) { const x = _salaECaptador(sheet, row); return _podeGravar(u, _opDaPesquisa(x.sala, x.captador), x.captador); }
