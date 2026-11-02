@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════
 // Your Vacation — Qualificador de Captação
-// Google Apps Script Backend — v30
+// Google Apps Script Backend — v31
 // Cole este código em: Planilha > Extensões > Apps Script
 // Depois: Implantar > Gerenciar implantações > Editar > Nova versão > Implantar
 // ═══════════════════════════════════════════════════════
@@ -1440,7 +1440,7 @@ function _doGet(e, user) {
       });
     });
 
-    return jsonResponse({ status: 'ok', leads });
+    return jsonResponse({ status: 'ok', leads: _juntarCopiasPorId(leads) });
   } catch (err) {
     return jsonResponse({ status: 'error', message: err.message });
   }
@@ -1856,6 +1856,79 @@ function migrarAbasPorSala() {
 
 // ── Remove linhas duplicadas por ID, mantendo apenas a ÚLTIMA ocorrência de cada ID ──
 // Rodar manualmente no Apps Script quando houver duplicatas
+// ── PESQUISAS REPETIDAS (v31) ──
+// De jul a 21/10 algumas pesquisas foram gravadas 2–3 vezes (mesmo ID). A marcação vai para a 1ª cópia
+// (findRowById), então a leitura devolve cada ID uma vez só: dados da 1ª cópia (a mesma que o findRowById acha),
+// EmSala e Venda = SIM se qualquer cópia tiver, TipoSala da cópia marcada.
+function _juntarCopiasPorId(leads) {
+  const porId = {}, saida = [];
+  leads.forEach(l => {
+    const base = porId[l.id];
+    if (!base) { porId[l.id] = l; saida.push(l); return; }
+    if (l.emSala && !base.emSala) { base.emSala = true; if (l.tipoSala) base.tipoSala = l.tipoSala; }
+    else if (!base.tipoSala && l.tipoSala && (l.emSala || !base.emSala)) base.tipoSala = l.tipoSala;
+    if (l.venda) base.venda = true;
+  });
+  return saida;
+}
+// RODAR NO EDITOR. Primeiro simularMesclarDuplicadas() (só conta, não muda nada); depois mesclarDuplicadasPorId().
+// Em cada aba de pesquisas: as marcações das cópias vão para a 1ª linha do ID (EmSala/Venda = SIM se qualquer
+// cópia tiver; TipoSala da cópia marcada) e as outras cópias são apagadas. Antes de mexer numa aba, guarda uma
+// cópia dela ("backup-<aba>-<data>"). Roda sob comTrava (o app espera e reenvia).
+// NÃO usar dedupTodasAsAbas: ela mantém a ÚLTIMA cópia e perde marcações.
+function simularMesclarDuplicadas() { return mesclarDuplicadasPorId(true); }
+function mesclarDuplicadasPorId(simular) {
+  return comTrava(() => {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const total = { grupos: 0, apagar: 0, marcacoesSalvas: 0, entreAbas: 0 };
+    const idsVistos = {};
+    abasDePesquisas().forEach(sheet => {
+      const n = sheet.getLastRow();
+      if (n < 3) return;
+      const nc = sheet.getLastColumn();
+      const dados = sheet.getRange(1, 1, n, nc).getValues();
+      const cab = dados[0];
+      const iId = cab.indexOf('ID'), iE = cab.indexOf('EmSala'), iT = cab.indexOf('TipoSala'), iV = cab.indexOf('Venda');
+      if (iId < 0) return;
+      const primeira = {}, apagar = new Set(), bases = new Set();
+      let grupos = 0, salvas = 0;
+      for (let i = 1; i < dados.length; i++) {
+        const id = String(dados[i][iId] || '').trim();
+        if (!id) continue;
+        if (primeira[id] === undefined) {
+          primeira[id] = i;
+          if (idsVistos[id] && idsVistos[id] !== sheet.getName()) total.entreAbas++;
+          idsVistos[id] = idsVistos[id] || sheet.getName();
+          continue;
+        }
+        const b = dados[primeira[id]], c = dados[i];
+        if (!bases.has(primeira[id])) { bases.add(primeira[id]); grupos++; }
+        const sim = x => String(x || '').trim().toUpperCase() === 'SIM';
+        // a marcação que estava só na cópia de baixo é a que hoje aparece vermelha no CDP
+        if (iE >= 0 && sim(c[iE]) && !sim(b[iE])) { b[iE] = 'SIM'; if (iT >= 0 && c[iT]) b[iT] = c[iT]; salvas++; }
+        else if (iT >= 0 && !b[iT] && c[iT]) b[iT] = c[iT];
+        if (iV >= 0 && sim(c[iV]) && !sim(b[iV])) b[iV] = 'SIM';
+        apagar.add(i);
+      }
+      const linhasApagar = Array.from(apagar);
+      Logger.log('[' + sheet.getName() + '] IDs repetidos: ' + grupos + ' · linhas a apagar: ' + linhasApagar.length + ' · marcações em sala que voltam para a 1ª cópia: ' + salvas);
+      total.grupos += grupos; total.apagar += linhasApagar.length; total.marcacoesSalvas += salvas;
+      if (simular || !linhasApagar.length) return;
+      // guarda a aba como estava
+      sheet.copyTo(ss).setName('backup-' + sheet.getName() + '-' + Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'yyyyMMdd-HHmm'));
+      // regrava da 1ª linha afetada (a 1ª cópia que recebeu marcações) para baixo, sem as cópias,
+      // e tira as linhas que sobraram no fim
+      const primeiraAfetada = Math.min.apply(null, Array.from(bases));
+      const resto = [];
+      for (let i = primeiraAfetada; i < dados.length; i++) if (!apagar.has(i)) resto.push(dados[i]);
+      if (resto.length) sheet.getRange(primeiraAfetada + 1, 1, resto.length, nc).setValues(resto);
+      sheet.deleteRows(primeiraAfetada + 1 + resto.length, linhasApagar.length);
+    });
+    Logger.log((simular ? 'SIMULAÇÃO (nada mudou)' : 'FEITO') + ' — IDs repetidos: ' + total.grupos + ' · linhas ' + (simular ? 'a apagar' : 'apagadas') + ': ' + total.apagar + ' · marcações em sala recuperadas: ' + total.marcacoesSalvas + ' · IDs repetidos entre abas diferentes (não mexidos): ' + total.entreAbas);
+    return total;
+  });
+}
+
 function dedupTodasAsAbas() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const nomeAbas = [...new Set(Object.values(SALA_SHEETS))]; // ['Alta Vista', 'São Pedro', 'Atibaia']
