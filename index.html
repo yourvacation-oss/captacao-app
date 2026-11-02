@@ -1429,9 +1429,13 @@ function _urlComCracha(url) { const c = qqParamCracha(); return c ? url + (url.i
 // quando a pessoa entra e a planilha devolve um crachá novo (_fecharTelaSenha). Sem troca automática.
 const CODIGOS_CRACHA_RECUSADO = ['sem_cracha', 'cracha_invalido', 'refazer_login'];
 const MSG_FILA_PARADA = 'Suas pesquisas não estão sendo enviadas. Entre de novo.';
-function _verCodigoCracha(json) {
+// v2.56: crachaEnviado = o crachá que foi naquela requisição. Resposta atrasada de um crachá que já foi trocado
+// (a pessoa entrou de novo enquanto ela vinha) é ignorada: não apaga o crachá novo nem pede a senha de novo.
+function _verCodigoCracha(json, crachaEnviado) {
   if (json && json.marcacaoParcial) { try { localStorage.setItem('yv_marcacao_parcial', '1'); } catch (e) {} } // v2.53: planilha v29+
-  if (json && CODIGOS_CRACHA_RECUSADO.includes(json.code)) qqCrachaRecusado(json.code);
+  if (!json || !CODIGOS_CRACHA_RECUSADO.includes(json.code)) return;
+  if (crachaEnviado !== undefined && crachaEnviado !== qqCracha()) { _telaLog('recusa ignorada (' + json.code + '): crachá já trocado'); return; }
+  qqCrachaRecusado(json.code);
 }
 // v2.53: só manda marcação parcial quando a planilha já disse que aceita (backend v29); antes disso manda completa
 function _marcacaoParcialOk() { try { return localStorage.getItem('yv_marcacao_parcial') === '1'; } catch (e) { return false; } }
@@ -1755,6 +1759,7 @@ const API = {
     if (!API.ok()) return false;
     if (!qqEnvioLiberado()) return false; // v2.51: sem crachá não envia (fica na fila do aparelho)
     try {
+      const _crEnv = qqCracha();
       const r = await fetch(CONFIG.webhookUrl, {
         method: 'POST',
         headers: {'Content-Type':'text/plain'},
@@ -1771,7 +1776,7 @@ const API = {
         return false;
       }
       const json = await r.json().catch(() => null);
-      _verCodigoCracha(json);
+      _verCodigoCracha(json, _crEnv);
       return json && (json.status === 'ok' || json.status === 'duplicate');
     } catch(e) {
       if (!opts.silent) console.warn('API.post fetch error:', e.message);
@@ -1783,10 +1788,11 @@ const API = {
     if (!API.ok()) return null;
     if (!_acaoSemCracha(payload) && !qqEnvioLiberado()) return null; // v2.51
     try {
+      const _crEnv = qqCracha();
       const r = await fetch(CONFIG.webhookUrl, { method: 'POST', headers: {'Content-Type':'text/plain'}, body: JSON.stringify(_comCracha(payload)) });
       if (!r.ok) return null;
       const json = await r.json().catch(() => null);
-      _verCodigoCracha(json);
+      _verCodigoCracha(json, _crEnv);
       return json;
     } catch(e) { return null; }
   },
@@ -1800,7 +1806,8 @@ const API = {
     if (!qqEnvioLiberado()) return null; // v2.51
     try {
       const p = new URLSearchParams(qqParamChave());
-      if (qqCracha()) p.set('cracha', qqCracha());
+      const _crEnv = qqCracha();
+      if (_crEnv) p.set('cracha', _crEnv);
       if (dateISO)  p.set('dateISO',  dateISO);
       if (dateFrom) p.set('dateFrom', dateFrom);
       if (dateTo)   p.set('dateTo',   dateTo);
@@ -1809,7 +1816,7 @@ const API = {
       const r = await fetch(url);
       if (!r.ok) return null;
       const json = await r.json();
-      _verCodigoCracha(json);
+      _verCodigoCracha(json, _crEnv);
       return Array.isArray(json) ? json : (json.leads || null);
     } catch(e) { return null; }
   }
@@ -2321,12 +2328,16 @@ async function doLogin() {
 }
 // Senha conferida: entra (senha pessoal) ou pede para criar a senha pessoal (provisória)
 function _entrarAposLogin(nome, pessoal, semServidor, motivo) {
+  // v2.56: a tela de senha abriu por cima do app já em uso (ex.: no meio de uma pesquisa) e a mesma pessoa entrou:
+  // só fecha a tela, sem navegar (goTo('new') chamaria startQuiz e zeraria a pesquisa em andamento)
+  const reentrada = _appIniciado && captador && captador.nome === nome;
   captador = _membro(nome);
   _marcarLogin();
   sessionStorage.setItem('yv_captador', nome);
   try { localStorage.setItem('yv_captador', nome); } catch(e) {}
   if (!pessoal) {
     localStorage.removeItem('yv_pw_' + nome); localStorage.removeItem('yv_pw_em_' + nome);
+    _criarSenhaReentrada = reentrada ? nome : null;
     abrirCriarSenha(nome);
     return;
   }
@@ -2335,7 +2346,7 @@ function _entrarAposLogin(nome, pessoal, semServidor, motivo) {
     document.getElementById('pwError').textContent = 'A planilha não devolveu o seu acesso. Tente de novo em instantes.';
     return;
   }
-  afterLogin();
+  afterLogin(reentrada);
 }
 
 // — Primeiro login: criação de senha pessoal —
@@ -2372,12 +2383,13 @@ async function confirmarCriarSenha() {
   if (!r.cracha) { _telaLog('criou senha sem crachá na resposta'); errEl.textContent = 'Senha criada, mas a planilha não devolveu o seu acesso. Volte e entre com a senha nova.'; return; }
   document.getElementById('criarSenhaPanel').classList.add('hidden');
   if (!_fecharTelaSenha('criou senha pessoal')) return;
-  afterLogin();
+  afterLogin(_appIniciado && _criarSenhaReentrada === nome);
 }
 
 function criarSenhaKeydown(e) { if (e.key === 'Enter') confirmarCriarSenha(); }
 
-function afterLogin() {
+let _appIniciado = false, _criarSenhaReentrada = null;
+function afterLogin(semNavegar) {
   const primeiroNome = captador.nome.split(' ')[0];
   document.getElementById('captadorPill').textContent = '👤 ' + primeiroNome;
   document.getElementById('splashCaptador').textContent = '👤 ' + captador.nome;
@@ -2395,6 +2407,9 @@ function afterLogin() {
   // v2.47: captador de operação com hotel de penetração vê "Minha penetração"
   const temPen = captador.cargo === 'captador' && _penHoteisDaOp(captador.operacao).length > 0;
   document.getElementById('navPen').classList.toggle('hidden', !temPen);
+  // v2.56: voltando de uma tela de senha que abriu por cima, fica onde estava (não zera a pesquisa)
+  if (semNavegar && _appIniciado) { _telaLog('voltou ao app sem navegar'); return; }
+  _appIniciado = true;
   // Restaurar a aba onde o usuário estava antes do reload
   const savedTab = sessionStorage.getItem('yv_tab') || 'home';
   goTo(savedTab);
@@ -5186,7 +5201,7 @@ function showCdp() {
     const _cdpDateTo   = (cdpFiltro.periodo === 'livre' && cdpFiltro.ate) ? cdpFiltro.ate : todayISO();
     Promise.all([
       API.getLeads(null, _cdpDateFrom, _cdpDateTo),
-      !qqEnvioLiberado() ? Promise.resolve(null) : fetch(_urlComCracha(CONFIG.webhookUrl + '?_type=pi' + (qqParamChave() ? '&' + qqParamChave() : ''))).then(r=>r.json()).then(j => { _verCodigoCracha(j); return j; }).catch(()=>null)
+      !qqEnvioLiberado() ? Promise.resolve(null) : (c => fetch(_urlComCracha(CONFIG.webhookUrl + '?_type=pi' + (qqParamChave() ? '&' + qqParamChave() : ''))).then(r=>r.json()).then(j => { _verCodigoCracha(j, c); return j; }).catch(()=>null))(qqCracha())
     ]).then(([remoto, piRemoto]) => {
       mergeRemoto(remoto, _cdpDateFrom, _cdpDateTo);
       mergePIsRemoto(piRemoto);
@@ -5709,10 +5724,11 @@ function ddpSheetsLoad(hotel) {
   const hotelEnc = encodeURIComponent(hotel);
   _ddpFetchPendente++;
   _ddpAtualizarBotaoFiltro();
+  const _crEnv = qqCracha();
   fetch(_urlComCracha(DDP_CONFIG.sheetsUrl + '?action=getDDP&hotel=' + hotelEnc))
     .then(r => r.json())
     .then(res => {
-      _verCodigoCracha(res);
+      _verCodigoCracha(res, _crEnv);
       if (res.status === 'ok' && Array.isArray(res.rows)) {
         // Normaliza dateISO — Sheets pode retornar objetos Date ou strings truncadas "GM..."
         const _MON={Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
@@ -5819,10 +5835,11 @@ async function _ddpPostSheets(entry) {
       vendConv:   entry.vendConv   || 0,
       visitantes: entry.visitantes || 0,
     });
+    const _crEnv = qqCracha();
     const r = await fetch(_urlComCracha(DDP_CONFIG.sheetsUrl + '?' + params.toString()));
     if (!r.ok) return false;
     const json = await r.json().catch(() => null);
-    _verCodigoCracha(json);
+    _verCodigoCracha(json, _crEnv);
     return json && (json.status === 'ok' || json.status === 'duplicate');
   } catch(e) { return false; }
 }
@@ -7866,7 +7883,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.55';
+const APP_VERSAO = '2.56';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
