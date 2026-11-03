@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════
 // Your Vacation — Qualificador de Captação
-// Google Apps Script Backend — v31
+// Google Apps Script Backend — v32
 // Cole este código em: Planilha > Extensões > Apps Script
 // Depois: Implantar > Gerenciar implantações > Editar > Nova versão > Implantar
 // ═══════════════════════════════════════════════════════
@@ -106,9 +106,47 @@ function _indiceDaAba(sheet) {
   _indiceIds[nome] = mapa;
   return mapa;
 }
+// v32: o índice de IDs vale só para o pedido atual (no Google cada pedido já começa do zero; isto garante o mesmo
+// comportamento em qualquer ambiente, já que a gravação nova não atualiza mais o índice)
+function _novaExecucao() { Object.keys(_indiceIds).forEach(k => delete _indiceIds[k]); }
 function findRowById(sheet, id) {
   const linha = _indiceDaAba(sheet).get(String(id));
   return linha ? linha : -1;
+}
+
+// ── v32: IDs recentes (6 h) no CacheService: ID → nome da aba onde foi gravado ──
+function _idRecente(id) { try { return CacheService.getScriptCache().get('idaba_' + id); } catch (e) { return null; } }
+function _lembrarIdRecente(id, aba) { try { CacheService.getScriptCache().put('idaba_' + id, aba, 21600); } catch (e) {} }
+
+// ── v32: formato da aba feito uma vez (fora do caminho de cada pesquisa) ──
+// Coluna Data como texto na aba toda (o Sheets não converte para data) e cor da linha por formatação
+// condicional pela coluna Resultado (Q verde, PARCIAL amarelo, NQ vermelho). Marca nas Propriedades.
+const _formatoOk = {};
+function _garantirFormatoAba(sheet) {
+  const nome = sheet.getName();
+  if (_formatoOk[nome]) return;
+  const props = PropertiesService.getScriptProperties(), chave = 'formato_v32_' + nome;
+  if (props.getProperty(chave)) { _formatoOk[nome] = true; return; }
+  _aplicarFormatoAba(sheet);
+  props.setProperty(chave, new Date().toISOString());
+  _formatoOk[nome] = true;
+}
+function _aplicarFormatoAba(sheet) {
+  const cab = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), N_COLS)).getValues()[0];
+  const iData = cab.indexOf('Data'), iRes = cab.indexOf('Resultado');
+  const letra = n => { let s = ''; n++; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
+  if (iData >= 0) sheet.getRange(letra(iData) + ':' + letra(iData)).setNumberFormat('@STRING@');
+  if (iRes < 0) return;
+  const col = letra(iRes), area = sheet.getRange('A2:' + letra(Math.max(cab.length, N_COLS) - 1));
+  const cor = (valor, fundo) => SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=$' + col + '2="' + valor + '"').setBackground(fundo).setRanges([area]).build();
+  // mantém as regras que já existirem na aba e acrescenta as três
+  const regras = sheet.getConditionalFormatRules().concat([cor('Q', '#d4edda'), cor('PARCIAL', '#fff3cd'), cor('NQ', '#f8d7da')]);
+  sheet.setConditionalFormatRules(regras);
+}
+// RODAR NO EDITOR (opcional): prepara o formato de todas as abas de pesquisas de uma vez, fora do horário.
+// Sem isso, cada aba é preparada sozinha na primeira pesquisa que chegar nela.
+function prepararFormatoDasAbas() {
+  abasDePesquisas().forEach(sh => { _garantirFormatoAba(sh); Logger.log('Formato pronto: ' + sh.getName()); });
 }
 
 // ── PI — armazenado em PropertiesService (invisível na planilha) ──
@@ -453,7 +491,8 @@ function _nomeDoCrachaSemConferir(cracha) {
   } catch (e) { return ''; }
 }
 function _registrarRecusa(d, code) {
-  const lock = LockService.getScriptLock();
+  // v32: trava própria (a do documento), não a principal — o registro de recusa não segura as pesquisas
+  const lock = LockService.getDocumentLock();
   if (!lock.tryLock(5000)) return; // registro não pode atrasar o app
   try {
     // quem mandou: o app novo diz (_quem); o antigo, pela pesquisa ou pelo crachá velho
@@ -689,6 +728,7 @@ function medirRegistroMarcacoes() {
 function _podeMarcar(u, sheet, row) { const x = _salaECaptador(sheet, row); return _podeGravar(u, _opDaPesquisa(x.sala, x.captador), x.captador); }
 
 function doPost(e) {
+  _novaExecucao(); // v32
   let d = null;
   try { d = JSON.parse(e.postData.contents); } catch (err) { return jsonResponse({ status: 'error', message: 'json' }); }
   // Entrada e sessão: não exigem crachá e não esperam a trava
@@ -798,14 +838,17 @@ function _doPost(e, user) {
       return jsonResponse({ status: 'error', code: 'sem_id', message: 'Pesquisa sem ID não foi gravada' });
     }
     if (!_podeGravar(user, _opDaPesquisa(data.sala, data.captador), data.captador)) return jsonResponse({ status: 'error', code: 'proibido', id: data.id });
-    // v9: procura o ID em todas as abas de pesquisas (a mesma pesquisa pode chegar com outra sala)
+    // v32: procura o ID só na aba de destino + nos IDs gravados nas últimas 6 h (CacheService), que dizem em
+    // que aba a pesquisa já está (ela pode voltar com outra sala). Antes lia a coluna de IDs de TODAS as abas
+    // dentro da trava. Repetida fora dessas 6 h em outra aba: a leitura já junta as cópias (v31).
     let sheet = resolverSheet(data.sala || '');
     let existingRow = findRowById(sheet, data.id);
     if (existingRow < 0) {
-      for (const outra of abasDePesquisas()) {
-        if (outra.getName() === sheet.getName()) continue;
-        const r = findRowById(outra, data.id);
-        if (r > 0) { sheet = outra; existingRow = r; break; }
+      const abaCache = _idRecente(data.id);
+      if (abaCache && abaCache !== sheet.getName()) {
+        const outra = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(abaCache);
+        const r = outra ? findRowById(outra, data.id) : -1;
+        if (r > 0) { sheet = outra; existingRow = r; }
       }
     }
     if (existingRow > 0) {
@@ -842,6 +885,7 @@ function _doPost(e, user) {
       return s;
     }
     const dataFmt = _fmtDate(data.date);
+    _garantirFormatoAba(sheet);
     sheet.appendRow([
       data.id || '', dataFmt, "'" + (data.time || ''),
       data.captador || '', data.sala || '', data.nome || '',
@@ -868,16 +912,9 @@ function _doPost(e, user) {
       ans.qtdMultiprop || '',              // QtdMultiprop (v21)
     ]);
 
-    // Aplica cor na linha recém inserida e trava formato da coluna Data como texto
-    const row = sheet.getLastRow();
-    if (_indiceIds[sheet.getName()] && !_indiceIds[sheet.getName()].has(String(data.id))) _indiceIds[sheet.getName()].set(String(data.id), row);
-    const nCols = sheet.getLastColumn();
-    const idxData = COLUNAS.indexOf('Data');
-    if (idxData >= 0) sheet.getRange(row, idxData + 1).setNumberFormat('@STRING@');
-    const range = sheet.getRange(row, 1, 1, nCols);
-    if (data.verdict === 'Q')       range.setBackground('#d4edda');
-    if (data.verdict === 'PARCIAL') range.setBackground('#fff3cd');
-    if (data.verdict === 'NQ')      range.setBackground('#f8d7da');
+    // v32: sem formatação linha a linha. A cor vem da formatação condicional da aba e a coluna Data já é
+    // texto na aba inteira (_garantirFormatoAba, uma vez por aba). Só lembra o ID por 6 h.
+    _lembrarIdRecente(data.id, sheet.getName()); // (o índice de IDs desta execução não precisa ser atualizado: ela termina aqui)
 
     return jsonResponse({ status: 'ok', id: data.id });
   } catch (err) {
