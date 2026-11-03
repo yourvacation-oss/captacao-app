@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════
 // Your Vacation — Qualificador de Captação
-// Google Apps Script Backend — v32
+// Google Apps Script Backend — v33
 // Cole este código em: Planilha > Extensões > Apps Script
 // Depois: Implantar > Gerenciar implantações > Editar > Nova versão > Implantar
 // ═══════════════════════════════════════════════════════
@@ -118,24 +118,32 @@ function findRowById(sheet, id) {
 function _idRecente(id) { try { return CacheService.getScriptCache().get('idaba_' + id); } catch (e) { return null; } }
 function _lembrarIdRecente(id, aba) { try { CacheService.getScriptCache().put('idaba_' + id, aba, 21600); } catch (e) {} }
 
-// ── v32: formato da aba feito uma vez (fora do caminho de cada pesquisa) ──
-// Coluna Data como texto na aba toda (o Sheets não converte para data) e cor da linha por formatação
-// condicional pela coluna Resultado (Q verde, PARCIAL amarelo, NQ vermelho). Marca nas Propriedades.
+// ── v32/v33: formato da aba feito uma vez (fora do caminho de cada pesquisa) ──
+// Cor da linha por formatação condicional pela coluna Resultado (Q verde, PARCIAL amarelo, NQ vermelho).
+// v33: a coluna Data NÃO ganha mais formato texto (as datas antigas guardadas como data passavam a vir como
+// número); a Data nova vai como texto pelo apóstrofo. Aba que o v32 deixou com Data em texto volta a ter
+// formato de data (as células de texto continuam texto). Marca nas Propriedades.
 const _formatoOk = {};
+const _letraCol = n => { let s = ''; n++; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
 function _garantirFormatoAba(sheet) {
   const nome = sheet.getName();
   if (_formatoOk[nome]) return;
-  const props = PropertiesService.getScriptProperties(), chave = 'formato_v32_' + nome;
-  if (props.getProperty(chave)) { _formatoOk[nome] = true; return; }
-  _aplicarFormatoAba(sheet);
-  props.setProperty(chave, new Date().toISOString());
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty('formato_v33_' + nome)) { _formatoOk[nome] = true; return; }
+  if (props.getProperty('formato_v32_' + nome)) _desfazerDataTextoV32(sheet); // regras de cor já estão lá
+  else _aplicarFormatoAba(sheet);
+  props.setProperty('formato_v33_' + nome, new Date().toISOString());
   _formatoOk[nome] = true;
+}
+function _desfazerDataTextoV32(sheet) {
+  const cab = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), N_COLS)).getValues()[0];
+  const iData = cab.indexOf('Data');
+  if (iData >= 0) sheet.getRange(_letraCol(iData) + ':' + _letraCol(iData)).setNumberFormat('dd/MM/yyyy');
 }
 function _aplicarFormatoAba(sheet) {
   const cab = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), N_COLS)).getValues()[0];
-  const iData = cab.indexOf('Data'), iRes = cab.indexOf('Resultado');
-  const letra = n => { let s = ''; n++; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
-  if (iData >= 0) sheet.getRange(letra(iData) + ':' + letra(iData)).setNumberFormat('@STRING@');
+  const iRes = cab.indexOf('Resultado');
+  const letra = _letraCol;
   if (iRes < 0) return;
   const col = letra(iRes), area = sheet.getRange('A2:' + letra(Math.max(cab.length, N_COLS) - 1));
   const cor = (valor, fundo) => SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=$' + col + '2="' + valor + '"').setBackground(fundo).setRanges([area]).build();
@@ -887,7 +895,7 @@ function _doPost(e, user) {
     const dataFmt = _fmtDate(data.date);
     _garantirFormatoAba(sheet);
     sheet.appendRow([
-      data.id || '', dataFmt, "'" + (data.time || ''),
+      data.id || '', dataFmt ? "'" + dataFmt : '', "'" + (data.time || ''), // v33: Data como texto pelo apóstrofo (como a Hora)
       data.captador || '', data.sala || '', data.nome || '',
       data.tel || '', data.cidade || '', data.verdict || '',
       data.tipo || '', data.renda || '', data.mode || '',
@@ -1383,6 +1391,11 @@ function _doGet(e, user) {
     // Normaliza qualquer formato de data para YYYY-MM-DD
     function _normRowDate(v) {
       if (!v) return '';
+      // v33: data guardada como data numa coluna que ficou com formato texto vem como número (dias desde 30/12/1899)
+      if (typeof v === 'number' && v > 30000 && v < 80000) {
+        const dt = new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 86400000);
+        return dt.getUTCFullYear() + '-' + String(dt.getUTCMonth() + 1).padStart(2, '0') + '-' + String(dt.getUTCDate()).padStart(2, '0');
+      }
       if (v instanceof Date) {
         const y = v.getFullYear();
         const m = String(v.getMonth() + 1).padStart(2, '0');
