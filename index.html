@@ -313,6 +313,7 @@
       transition: background .1s, color .1s;
     }
     .prof-item:last-child { border-bottom: none; }
+    .cid-uf { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 6px; background: rgba(241,214,145,.15); color: var(--gold); font-size: 12px; font-weight: 700; letter-spacing: .04em; vertical-align: 1px; }
     .prof-item:hover, .prof-item.focused { background: rgba(241,214,145,.08); color: var(--text); }
     .prof-item .mhl { color: var(--gold); }
     .prof-empty { padding: 14px; text-align: center; color: var(--muted); font-size: 13px; font-style: italic; }
@@ -2615,12 +2616,41 @@ function _cidadeHL(text, q) {
   const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
   return esc(text.slice(0,i)) + '<span class="mhl">' + esc(text.slice(i, i+q.length)) + '</span>' + esc(text.slice(i+q.length));
 }
+// v2.57: sugestões priorizando o estado da operação e os vizinhos, e as cidades maiores primeiro.
+// Só aparecem com 2+ letras (evita tocar sem querer numa cidade da lista em ordem alfabética).
+const CID_ESTADOS_OPERACAO = {
+  'Caldas Novas': ['GO', 'DF', 'MG', 'SP'],
+  'São Pedro': ['SP', 'MG', 'RJ', 'PR'], 'Atibaia': ['SP', 'MG', 'RJ', 'PR'],
+  'Ubatuba': ['SP', 'MG', 'RJ', 'PR'], 'Ribeirão Preto': ['SP', 'MG', 'RJ', 'PR'],
+};
+// cidades maiores (aprox. pela população), por UF — o resto vem em ordem alfabética depois delas
+const CID_GRANDES = {"SP": ["São Paulo", "Guarulhos", "Campinas", "São Bernardo do Campo", "Santo André", "Osasco", "São José dos Campos", "Ribeirão Preto", "Sorocaba", "Mauá", "São José do Rio Preto", "Mogi das Cruzes", "Santos", "Diadema", "Jundiaí", "Piracicaba", "Carapicuíba", "Bauru", "Itaquaquecetuba", "São Vicente", "Franca", "Praia Grande", "Guarujá", "Taubaté", "Limeira", "Suzano", "Taboão da Serra", "Sumaré", "Barueri", "Embu das Artes", "São Carlos", "Indaiatuba", "Cotia", "Americana", "Marília", "Itapevi", "Araraquara", "Jacareí", "Hortolândia", "Presidente Prudente", "Rio Claro", "Araçatuba", "Ferraz de Vasconcelos", "Santa Bárbara d'Oeste", "Francisco Morato", "Itapecerica da Serra", "Itu", "Bragança Paulista", "Pindamonhangaba", "Itapetininga", "São Caetano do Sul", "Franco da Rocha", "Mogi Guaçu", "Jaú", "Botucatu", "Atibaia", "Santana de Parnaíba", "Araras", "Cubatão", "Valinhos", "Sertãozinho", "Jandira", "Birigui", "Ribeirão Pires", "Votorantim", "Barretos", "Catanduva", "Várzea Paulista", "Guaratinguetá", "Tatuí", "Caraguatatuba", "Salto", "Poá", "Ourinhos", "Paulínia", "Assis", "Leme", "Itanhaém", "Caieiras", "Mairiporã", "Votuporanga", "Itatiba", "Ubatuba", "São Pedro", "Águas de São Pedro", "Bertioga", "Ilhabela", "São Sebastião", "Campos do Jordão", "Lençóis Paulista"], "MG": ["Belo Horizonte", "Uberlândia", "Contagem", "Juiz de Fora", "Betim", "Montes Claros", "Ribeirão das Neves", "Uberaba", "Governador Valadares", "Ipatinga", "Sete Lagoas", "Divinópolis", "Santa Luzia", "Ibirité", "Poços de Caldas", "Patos de Minas", "Pouso Alegre", "Teófilo Otoni", "Barbacena", "Sabará", "Varginha", "Conselheiro Lafaiete", "Vespasiano", "Itabira", "Araguari", "Passos", "Ubá", "Coronel Fabriciano", "Muriaé", "Ituiutaba", "Araxá", "Lavras", "Itajubá", "Paracatu", "Unaí", "Extrema"], "RJ": ["Rio de Janeiro", "São Gonçalo", "Duque de Caxias", "Nova Iguaçu", "Niterói", "Belford Roxo", "Campos dos Goytacazes", "São João de Meriti", "Petrópolis", "Volta Redonda", "Macaé", "Magé", "Itaboraí", "Cabo Frio", "Maricá", "Angra dos Reis", "Nova Friburgo", "Barra Mansa", "Teresópolis", "Mesquita", "Nilópolis", "Resende", "Paraty"], "PR": ["Curitiba", "Londrina", "Maringá", "Ponta Grossa", "Cascavel", "São José dos Pinhais", "Foz do Iguaçu", "Colombo", "Guarapuava", "Paranaguá", "Araucária", "Toledo", "Apucarana", "Pinhais", "Campo Largo"], "GO": ["Goiânia", "Aparecida de Goiânia", "Anápolis", "Rio Verde", "Águas Lindas de Goiás", "Luziânia", "Valparaíso de Goiás", "Trindade", "Formosa", "Senador Canedo", "Novo Gama", "Catalão", "Itumbiara", "Jataí", "Planaltina", "Caldas Novas", "Santo Antônio do Descoberto", "Cidade Ocidental", "Goianésia", "Mineiros", "Inhumas", "Morrinhos", "Pires do Rio"], "DF": ["Brasília"], "BA": ["Salvador"], "CE": ["Fortaleza"], "AM": ["Manaus"], "PE": ["Recife"], "RS": ["Porto Alegre"], "PA": ["Belém"], "MA": ["São Luís"], "AL": ["Maceió"], "MS": ["Campo Grande"], "RN": ["Natal"], "PI": ["Teresina"], "PB": ["João Pessoa"], "SE": ["Aracaju"], "MT": ["Cuiabá"], "SC": ["Florianópolis", "Joinville"], "ES": ["Vitória", "Vila Velha", "Serra"], "TO": ["Palmas"], "RO": ["Porto Velho"], "AP": ["Macapá"], "AC": ["Rio Branco"], "RR": ["Boa Vista"]};
+const _cidRank = {};
+Object.keys(CID_GRANDES).forEach(uf => CID_GRANDES[uf].forEach((n, i) => { _cidRank[n + ' — ' + uf] = i; }));
+function _cidadeEstadosPrioridade() {
+  let op = captador && captador.operacao;
+  if (!op && salaAtual) { const cfg = CONFIG.salas.find(x => x.id === salaAtual.id || x.nome === salaAtual.nome); op = cfg && cfg.operacao; }
+  return CID_ESTADOS_OPERACAO[op] || ['SP', 'MG', 'RJ', 'PR'];
+}
 function _cidadeGetFiltered(q) {
-  if (!q) return TODOS_MUNICIPIOS.slice(0, 80);
-  const nq = _cidadeNorm(q);
-  const starts   = TODOS_MUNICIPIOS.filter(p =>  _cidadeNorm(p).startsWith(nq));
-  const contains = TODOS_MUNICIPIOS.filter(p => !_cidadeNorm(p).startsWith(nq) && _cidadeNorm(p).includes(nq));
-  return [...starts, ...contains].slice(0, 60);
+  const nq = _cidadeNorm(q || '');
+  if (nq.length < 2) return [];
+  const ufs = _cidadeEstadosPrioridade();
+  const achados = [];
+  TODOS_MUNICIPIOS.forEach(p => {
+    const nome = _cidadeNorm(p.split(' — ')[0]);
+    let m = -1;
+    if (nome.startsWith(nq)) m = 0;                          // começa com o que foi digitado
+    else if ((' ' + nome).includes(' ' + nq)) m = 1;         // uma palavra começa (ex.: "pedro" → São Pedro)
+    else if (_cidadeNorm(p).includes(nq)) m = 2;             // contém
+    if (m < 0) return;
+    const uf = p.slice(-2), iu = ufs.indexOf(uf);
+    achados.push({ p, m, pri: iu < 0 ? 9 : iu, rank: _cidRank[p] === undefined ? 9999 : _cidRank[p] });
+  });
+  // nome ou palavra que começa com o texto vêm antes de "contém"; dentro disso, estado da operação/vizinhos e cidades maiores
+  const faixa = x => (x.m <= 1 ? 0 : 1);
+  achados.sort((a, b) => faixa(a) - faixa(b) || a.pri - b.pri || a.rank - b.rank || a.m - b.m || a.p.localeCompare(b.p, 'pt-BR'));
+  return achados.slice(0, 60).map(x => x.p);
 }
 function _cidadeRenderList(query) {
   const list = document.getElementById('cidadeList');
@@ -2628,16 +2658,19 @@ function _cidadeRenderList(query) {
   _cidadeListaAtual = _cidadeGetFiltered(query);
   _cidadeFocusIdx = -1;
   if (_cidadeListaAtual.length === 0) {
-    list.innerHTML = '<div class="prof-empty">Nenhuma cidade encontrada</div>';
+    list.innerHTML = _cidadeNorm(query || '').length < 2
+      ? '<div class="prof-empty">Digite pelo menos 2 letras da cidade</div>'
+      : '<div class="prof-empty">Nenhuma cidade encontrada</div>';
     countEl.textContent = '';
     return;
   }
-  countEl.textContent = query
-    ? _cidadeListaAtual.length + ' resultado' + (_cidadeListaAtual.length > 1 ? 's' : '')
-    : TODOS_MUNICIPIOS.length + ' municípios disponíveis';
-  list.innerHTML = _cidadeListaAtual.map((p,i) =>
-    `<div class="prof-item" data-idx="${i}" data-val="${p.replace(/"/g,'&quot;')}" onmousedown="_cidadePick(this.dataset.val)">${_cidadeHL(p, query)}</div>`
-  ).join('');
+  countEl.textContent = _cidadeListaAtual.length + ' resultado' + (_cidadeListaAtual.length > 1 ? 's' : '') + ' · toque na cidade certa';
+  // v2.57: UF sempre visível; a cidade só é aceita com um toque completo (click). Encostar/rolar a lista não escolhe.
+  // pointerdown com preventDefault só evita que o campo perca o foco (e a lista feche) antes do toque terminar.
+  list.innerHTML = _cidadeListaAtual.map((p,i) => {
+    const nome = p.split(' — ')[0], uf = p.slice(-2);
+    return `<div class="prof-item" data-idx="${i}" data-val="${p.replace(/"/g,'&quot;')}" onpointerdown="event.preventDefault()" onclick="_cidadePick(this.dataset.val)">${_cidadeHL(nome, query)}<span class="cid-uf">${uf}</span></div>`;
+  }).join('');
 }
 function _cidadeOpenDD() {
   document.getElementById('cidadeDropdown').classList.add('open');
@@ -7883,7 +7916,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.56';
+const APP_VERSAO = '2.57';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
