@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════
 // Your Vacation — Qualificador de Captação
-// Google Apps Script Backend — v33
+// Google Apps Script Backend — v34
 // Cole este código em: Planilha > Extensões > Apps Script
 // Depois: Implantar > Gerenciar implantações > Editar > Nova versão > Implantar
 // ═══════════════════════════════════════════════════════
@@ -735,7 +735,81 @@ function medirRegistroMarcacoes() {
 
 function _podeMarcar(u, sheet, row) { const x = _salaECaptador(sheet, row); return _podeGravar(u, _opDaPesquisa(x.sala, x.captador), x.captador); }
 
+// v34: doPost/doGet passam pelo registro de erros (aba "Erros"); a lógica de antes está em _doPostEntrada/_doGetEntrada
 function doPost(e) {
+  _ultimaResposta = null;
+  const out = _doPostEntrada(e);
+  _registrarErro('POST', e, _ultimaResposta);
+  return out;
+}
+function doGet(e) {
+  _ultimaResposta = null;
+  const out = _doGetEntrada(e);
+  _registrarErro('GET', e, _ultimaResposta);
+  return out;
+}
+
+// ── ERROS (v34) ──
+// Todo pedido cuja resposta não é ok/duplicate vira uma linha na aba "Erros" (no máximo 1 por
+// captador + ID + código por dia). Trava própria (a do documento), nunca a principal. Só registra.
+let _ultimaResposta = null;
+const ERROS_SHEET = 'Erros';
+const ERROS_COLUNAS = ['Data/hora', 'Captador', 'Ação', 'ID', 'Sala', 'Status', 'Code', 'Message'];
+function _registrarErro(metodo, e, resp) {
+  try {
+    if (!resp || typeof resp !== 'object' || Array.isArray(resp)) return;
+    const st = String(resp.status || '');
+    if (st === 'ok' || st === 'duplicate') return;
+    let d = {};
+    if (metodo === 'POST') { try { d = JSON.parse(e.postData.contents) || {}; } catch (x) { d = {}; } }
+    else d = (e && e.parameter) || {};
+    // captador: pelo crachá (válido ou, se recusado, o nome que está nele); senão pelo nome enviado — só se for da equipe
+    let nome = '';
+    const u = d.cracha ? lerCracha(d.cracha) : null;
+    if (u) nome = u.nome;
+    else {
+      const cand = _nomeDoCrachaSemConferir(d.cracha) || d._quem || d.nome || d.captador || d.por || '';
+      const m = cand ? _acharMembro(cand) : null;
+      nome = m ? m.nome : '(desconhecido)';
+    }
+    const acao = (metodo === 'GET' ? 'GET ' : '') + String(d._action || d.action || d._type || (d.id ? 'pesquisa' : (metodo === 'GET' ? 'leitura' : '?')));
+    const id = d.id !== undefined && d.id !== null ? String(d.id)
+      : (Array.isArray(d.updates) ? d.updates.slice(0, 20).map(x => x && x.id).join(',') + (d.updates.length > 20 ? ',…' : '') : '');
+    const code = String(resp.code || '');
+    const hoje = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'yyyy-MM-dd');
+    const chave = 'erro_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, [hoje, nome, id, code].join('|'), Utilities.Charset.UTF_8));
+    const cache = CacheService.getScriptCache();
+    if (cache.get(chave)) return; // já registrado hoje (nas últimas 6 h)
+    const lock = LockService.getDocumentLock();
+    if (!lock.tryLock(3000)) return; // registro não pode atrasar o app
+    try {
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      let sh = ss.getSheetByName(ERROS_SHEET);
+      if (!sh) {
+        sh = ss.insertSheet(ERROS_SHEET);
+        const h = sh.getRange(1, 1, 1, ERROS_COLUNAS.length);
+        h.setValues([ERROS_COLUNAS]); h.setBackground('#1a2340'); h.setFontColor('#c9a84c'); h.setFontWeight('bold');
+        sh.setFrozenRows(1);
+        sh.getRange('D:D').setNumberFormat('@STRING@'); // ID como texto
+      }
+      // mesma pessoa + ID + código já registrado hoje? (confere as últimas 500 linhas — o cache dura só 6 h)
+      const n = sh.getLastRow();
+      if (n > 1) {
+        const ini = Math.max(2, n - 499);
+        const ja = sh.getRange(ini, 1, n - ini + 1, ERROS_COLUNAS.length).getValues().some(l =>
+          _dataISO(String(l[0]).replace(/^'/, '').slice(0, 10)) === hoje && String(l[1]) === nome && String(l[3]) === id && String(l[6]) === code);
+        if (ja) { cache.put(chave, '1', 21600); return; }
+      }
+      const quando = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm:ss');
+      sh.appendRow(["'" + quando, nome, acao, id, String(d.sala || ''), st, code, String(resp.message || '').slice(0, 300)]);
+      cache.put(chave, '1', 21600);
+    } finally { lock.releaseLock(); }
+  } catch (x) {
+    // nunca atrapalha a resposta
+  }
+}
+
+function _doPostEntrada(e) {
   _novaExecucao(); // v32
   let d = null;
   try { d = JSON.parse(e.postData.contents); } catch (err) { return jsonResponse({ status: 'error', message: 'json' }); }
@@ -930,7 +1004,7 @@ function _doPost(e, user) {
   }
 }
 
-function doGet(e) {
+function _doGetEntrada(e) {
   const p = e && e.parameter ? e.parameter : {};
   // A lista de nomes da equipe é pública (a tela de entrada precisa dela antes do login)
   if (p.action === 'listarEquipe') return _doGet(e, null);
@@ -2257,6 +2331,7 @@ function _marcarJeitoV21(updates, user) {
 }
 
 function jsonResponse(obj) {
+  _ultimaResposta = obj; // v34: a resposta que vai ao app (para a aba Erros)
   // v29: avisa o app que as marcações podem ir parciais (só os campos mudados). Só em respostas-objeto.
   if (obj && typeof obj === 'object' && !Array.isArray(obj)) obj = Object.assign({ marcacaoParcial: true }, obj);
   return ContentService
