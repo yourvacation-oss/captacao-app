@@ -19,6 +19,7 @@ ATENÇÃO: este repositório é PÚBLICO. Nunca registrar aqui senhas, tokens, d
 - O repositório antigo erickfaleirosilva-oss/captacao-app (erickfaleirosilva-oss.github.io/captacao-app) é só a PONTE: leva quem ainda abre o endereço antigo para o novo, junto com as pendências do celular. NÃO alterar, não fazer push nem apagar esse repositório.
 - O código da ponte está no index.html (bloco "PONTE DE ENDEREÇO", QQ_ENDERECO_NOVO / QQ_HOST_ANTIGO). Só age quando o host é o antigo; no endereço novo fica inativo. O endereço novo recebe os dados pelo #qqmig= da URL. Não remover esse bloco nem a leitura do #qqmig sem combinar com o Erick.
 - deploy.sh e LEIA-ME-TI.md ainda citam o endereço antigo.
+- Mudança para qualifiq.yourvacation.com.br (app v2.60): redirect.json na raiz ({"ativo": false, "url": "https://qualifiq.yourvacation.com.br/"}), lido sem cache ao abrir, ao voltar o sinal e a cada 15 min (qqVerificarRedirect). Com "ativo": true usa a ponte (_qqIniciarPonte({destino, imediato})): sem fila vai na hora; com fila mostra "Enviando X de Y, não feche o app", envia (offlineFlush/ddpOfflineFlush) e só então redireciona levando #qqmig; sem internet avisa e tenta de novo ao voltar o sinal; sem crachá, as pendências vão junto no #qqmig. No próprio endereço de destino não faz nada. Para ligar: mudar "ativo" para true no redirect.json e fazer push (não precisa subir versão).
 
 ## Seções do JavaScript (index.html)
 - CONFIG: captadores, salas, regras, webhookUrl.
