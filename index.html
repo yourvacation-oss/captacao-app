@@ -1401,7 +1401,9 @@ const MSG_SENHA = {
 // crachá sem digitar a senha, se a senha pessoal deste celular já estiver na planilha.
 const CRACHA_KEY = 'yv_cracha';
 function qqCracha() { try { return localStorage.getItem(CRACHA_KEY) || ''; } catch (e) { return ''; } }
-function qqGuardarCracha(c) { if (!c) return; try { localStorage.setItem(CRACHA_KEY, c); } catch (e) {} setTimeout(() => { try { offlineFlush(); ddpOfflineFlush(); } catch (e) {} qqAtualizarAvisoFila(); }, 300); }
+function qqGuardarCracha(c) { if (!c) return; try { localStorage.setItem(CRACHA_KEY, c); } catch (e) {} setTimeout(() => { try { offlineFlush(); ddpOfflineFlush(); } catch (e) {} qqAtualizarAvisoFila(); }, 300);
+  // v2.61: o redirecionamento esperava a pessoa entrar para enviar a fila: retoma
+  try { if (_qqRedirectAposLogin) { _qqRedirectAposLogin = false; setTimeout(qqVerificarRedirect, 1500); } } catch (e) {} }
 // v2.51: TRAVA ÚNICA. Sem crachá, nada vai para a planilha (nem pesquisa, nem marcação, nem DDP, nem leitura).
 // Só passam a entrada/senha (equipe_*) e a lista pública da equipe. Assim um celular sem crachá não gera recusas.
 function qqEnvioLiberado() { return !!qqCracha(); }
@@ -7916,7 +7918,7 @@ if ('serviceWorker' in navigator) {
 // O app compara sua versão com version.json (no servidor) a cada 5 min, ao voltar
 // para a tela e ao recuperar a internet. Se mudou, mostra o botão "Atualizar".
 // A cada publicação: subir APP_VERSAO aqui, "versao" no version.json e CACHE_NAME no sw.js.
-const APP_VERSAO = '2.60';
+const APP_VERSAO = '2.61';
 function qqVerificarVersao() {
   if (!navigator.onLine || document.getElementById('qqAvisoVersao')) return;
   fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
@@ -8121,6 +8123,10 @@ function _qqIniciarPonte(opts) {
   if (document.getElementById('qqPonte')) return;
   opts = (opts && opts.type === undefined) ? opts : {}; // (quando vem de img.onload, o argumento é o evento)
   const destino = opts.destino || QQ_ENDERECO_NOVO;
+  // v2.61: no redirecionamento do redirect.json (opts.destino) vai para a url limpa, sem levar dados no link;
+  // a ponte do endereço antigo (sem opts.destino) continua igual, com #qqmig
+  const modoNovo = !!opts.destino;
+  const linkFinal = () => modoNovo ? destino : _qqLinkMigracao(destino);
   const el = document.createElement('div');
   el.id = 'qqPonte';
   el.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#13243A;color:#fff;display:flex;align-items:center;justify-content:center;padding:24px;font-family:Poppins,system-ui,sans-serif;text-align:center';
@@ -8128,18 +8134,19 @@ function _qqIniciarPonte(opts) {
     + '<div style="font-size:42px;margin-bottom:8px">📍</div>'
     + '<div style="font-size:22px;font-weight:800;color:#F1D691;margin-bottom:12px">O QualifiQ mudou de endereço</div>'
     + '<div id="qqPonteMsg" style="font-size:15px;line-height:1.5;margin-bottom:18px">Verificando pesquisas pendentes…</div>'
-    + '<div style="font-size:13px;line-height:1.5;color:#c9d3df;margin-bottom:18px">No novo endereço, entre de novo com seu nome e senha. Depois, apague o atalho antigo da tela do celular e salve o novo.</div>'
+    + '<div style="font-size:13px;line-height:1.5;color:#c9d3df;margin-bottom:18px">' + (modoNovo ? 'No novo QualifiQ, entre com o seu e-mail de acesso.' : 'No novo endereço, entre de novo com seu nome e senha. Depois, apague o atalho antigo da tela do celular e salve o novo.') + '</div>'
     + '<a id="qqPonteBtn" href="' + destino + '" style="display:inline-block;background:#F1D691;color:#13243A;font-weight:800;padding:12px 22px;border-radius:10px;text-decoration:none">Ir para o novo endereço</a>'
     + '</div>';
   document.body.appendChild(el);
   const msg = document.getElementById('qqPonteMsg');
   const btn = document.getElementById('qqPonteBtn');
   btn.addEventListener('click', ev => {
-    // As pendências seguem junto no link e são enviadas pelo endereço novo
-    btn.href = _qqLinkMigracao(destino);
+    // Ponte antiga: as pendências seguem junto no link e são enviadas pelo endereço novo
+    btn.href = linkFinal();
   });
+  if (modoNovo) btn.style.display = 'none'; // v2.61: só sai daqui depois de enviar a fila
   let tentativas = 0, total = 0, timer = null, foi = false;
-  const ir = () => { if (foi) return; foi = true; location.replace(_qqLinkMigracao(destino)); };
+  const ir = () => { if (foi) return; foi = true; location.replace(linkFinal()); };
   const ciclo = () => {
     if (timer) { clearTimeout(timer); timer = null; }
     if (foi) return;
@@ -8153,10 +8160,16 @@ function _qqIniciarPonte(opts) {
     }
     if (!navigator.onLine) {
       msg.textContent = 'Sem internet. Há ' + n + ' pendência(s) neste celular; elas serão enviadas assim que o sinal voltar. Não feche o app.';
-    } else if (opts.destino && !qqEnvioLiberado()) {
-      // sem crachá nada sai daqui: as pendências vão junto no link e são enviadas no endereço novo, depois de entrar
-      msg.textContent = 'Você vai entrar de novo no endereço novo; as ' + n + ' pendência(s) deste celular vão junto.';
-      setTimeout(ir, 2500);
+    } else if (modoNovo && !qqEnvioLiberado()) {
+      // v2.61: sem login a fila não sai e nada vai no link: fecha esta tela e pede nome e senha;
+      // depois de entrar, a fila é enviada e o redirecionamento continua (_qqRedirectAposLogin)
+      foi = true;
+      window.removeEventListener('online', ciclo);
+      el.remove();
+      _qqRedirectAposLogin = true;
+      if (captador) _abrirTelaSenha('redirecionamento: entrar para enviar ' + n + ' pendência(s)');
+      else document.getElementById('screenLogin').classList.remove('hidden');
+      qqAtualizarAvisoFila();
       return;
     } else {
       msg.textContent = 'Enviando ' + (total - n + 1) + ' de ' + total + ', não feche o app.';
@@ -8175,7 +8188,7 @@ function _qqIniciarPonte(opts) {
 // redirect.json na raiz: {"ativo": false, "url": "..."}. Lido sem cache ao abrir (e de novo ao voltar o sinal
 // e a cada 15 min). Com "ativo": true, a ponte envia primeiro a fila do celular e depois leva para a url.
 // No próprio endereço de destino não faz nada (evita ficar indo e voltando).
-let _qqRedirectVisto = false;
+let _qqRedirectVisto = false, _qqRedirectAposLogin = false;
 function qqVerificarRedirect() {
   if (location.hostname === QQ_HOST_ANTIGO || document.getElementById('qqPonte')) return;
   fetch('redirect.json?t=' + Date.now(), { cache: 'no-store' })
